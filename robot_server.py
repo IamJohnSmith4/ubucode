@@ -60,6 +60,8 @@ class OdomRobot:
         self.yaw = math.atan2(math.sin(self.raw_yaw - self.offset_yaw), math.cos(self.raw_yaw - self.offset_yaw))
 
     def move_forward(self, distance):
+        self.pub.publish(Twist())
+        rospy.sleep(0.2)
         start_x, start_y = self.x, self.y
         target_yaw = self.yaw 
         rate = rospy.Rate(20)
@@ -71,7 +73,7 @@ class OdomRobot:
             
             error_yaw = math.atan2(math.sin(target_yaw - self.yaw), math.cos(target_yaw - self.yaw))
             twist = Twist()
-            twist.linear.x = 0.2
+            twist.linear.x = 0.15
             twist.angular.z = self.pid_straight.compute(error_yaw, 0.05)
             
             self.pub.publish(twist)
@@ -104,16 +106,17 @@ class OdomRobot:
 
     def execute_path(self, start, target):
         # ... (ใส่ Dictionary paths ทั้งหมดที่คุณเขียนไว้ตรงนี้) ...
-        paths = {(1, 2): [("rotate", -90), ("move", 2.0), ("move", 2.0), ("move", 2.0), ("move", 0.5), ("rotate", 90), ("move", 2.0), ("move", 2.0), ("move", 2.0), ("move", 2.0), ("move", 2.0), ("rotate", 90), ("move", 1.5)],
-    (1, 3): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (1, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (1, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (1, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (1, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (1, 8): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (1, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (1, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (1, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+        paths = {
+    (1, 2): [("rotate", -90), ("move", 6.5),  ("rotate", 90), ("move", 5.0),("move", 5.0),("move", 5.2),("rotate", 90),("move", 1.0)],
+    (1, 3): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 2.0)],
+    (1, 4): [("rotate", -90), ("move", 6.5)],
+    (1, 5): [("rotate", -90), ("move", 6.5)],
+    (1, 6): [("rotate", -90), ("move", 6.5)],
+    (1, 7): [("rotate", -90), ("move", 6.5)],
+    (1, 8): [("rotate", -90), ("move", 6.5)],
+    (1, 9): [("rotate", -90), ("move", 6.5)],
+    (1, 10): [("rotate", -90), ("move", 6.5)],
+    (1, 11): [("rotate", -90), ("move", 6.5)],
     (2, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
     (2, 3): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
     (2, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -216,48 +219,14 @@ class OdomRobot:
     (11, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],} # ตัวอย่าง
         key = (start, target)
         if key in paths:
+            rospy.loginfo(f"Starting path from {start} to {target}")
             for action, value in paths[key]:
-                if action == "move": self.move_forward(value)
-                elif action == "rotate": self.rotate(math.radians(value))
+                if action == "move": 
+                    rospy.loginfo(f"Moving {value} meters...")
+                    self.move_forward(value)
+                elif action == "rotate": 
+                    self.rotate(math.radians(value))
+                    rospy.sleep(0.5)
             return True
+        rospy.logwarn(f"Path not found for {key}")  
         return False
-
-# ==================================================
-# API SERVER (ส่วนที่เพิ่มมาเพื่อคุยกับ Windows)
-# ==================================================
-app = Flask(__name__)
-my_robot = None
-
-@app.route('/command', methods=['POST'])
-def handle_command():
-    data = request.json
-    start, target = data.get('start'), data.get('target')
-    rospy.loginfo(f"Received command: Station {start} -> {target}")
-    success = my_robot.execute_path(start, target)
-    return jsonify({"status": "success" if success else "error"})
-
-
-@app.route('/stop', methods=['GET', 'POST'])
-def stop_robot():
-    try:
-        # 1. สร้างข้อความความเร็วเป็น 0 ทั้งหมด
-        stop_cmd = Twist()
-        stop_cmd.linear.x = 0.0
-        stop_cmd.angular.z = 0.0
-        
-        # 2. Publish ไปที่ ROS ทันที
-        velocity_publisher.publish(stop_cmd)
-        
-        # 3. (สำคัญมาก) ถ้าคุณใช้ Loop ในการเดิน ต้องมีตัวแปรขัดจังหวะ
-        # เช่นกำหนด global variable ให้หลุดจาก loop เดินหน้า
-        global is_navigating
-        is_navigating = False 
-        
-        print("!!! EMERGENCY STOP: Received stop command from Web UI")
-        return jsonify({"status": "success", "message": "Robot stopped"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-        
-if __name__ == "__main__":
-    my_robot = OdomRobot()
-    app.run(host='0.0.0.0', port=5000)
