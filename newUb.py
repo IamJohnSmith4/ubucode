@@ -49,11 +49,11 @@ class PID:
 # ==================================================
 class OdomRobot:
     def __init__(self):
-        rospy.init_node("odom_robot", disable_signals=True)
-        self.pub = velocity_publisher
+        rospy.init_node("odom_robot")
+        self.pub = velocity_publisher # ใช้ตัวแปรเดียวกับ API
         rospy.Subscriber("/odom", Odometry, self.odom_callback)
         
-        # ค่า PID สำหรับ TurtleBot2
+        # กำหนดค่า PID ไว้ที่นี่ก่อนเริ่มทำงาน
         self.pid_straight = PID(kp=1.5, ki=0.0, kd=0.1, min_val=-0.4, max_val=0.4)
         self.pid_rotate = PID(kp=1.2, ki=0.01, kd=0.05, min_val=-0.6, max_val=0.6)
         
@@ -62,7 +62,14 @@ class OdomRobot:
         self.offset_x, self.offset_y, self.offset_yaw = 0.0, 0.0, 0.0
 
         rospy.sleep(1)
-        rospy.loginfo("=== ROBOT INITIALIZED ===")
+        rospy.loginfo("=== START HOME SEQUENCE ===")
+        self.move_forward(2.5)
+        self.rotate(-math.pi / 2)
+        self.move_forward(0.5)
+        self.rotate(math.pi)
+        self.reset_home()
+        rospy.loginfo("=== ROBOT READY (HOME=0,0,0) ===")
+
 
     def odom_callback(self, msg):
         self.raw_x = msg.pose.pose.position.x
@@ -111,7 +118,13 @@ class OdomRobot:
             rate.sleep()
         self.pub.publish(Twist())
         rospy.sleep(0.3)
-
+        
+    def reset_home(self):
+        self.offset_x += self.x
+        self.offset_y += self.y
+        self.offset_yaw += self.yaw
+        rospy.sleep(0.2)
+        
     def execute_path(self, start, target):
         # ... (ใส่ Dictionary paths ทั้งหมดที่คุณเขียนไว้ตรงนี้) ...
         paths = {
