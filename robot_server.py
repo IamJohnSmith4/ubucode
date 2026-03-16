@@ -6,17 +6,19 @@ from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
 from flask import Flask, request, jsonify
 
-velocity_publisher = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist, queue_size=10)
+# ย้าย publisher ออกมาไว้ข้างนอกเพื่อใช้ใน API ได้
+velocity_publisher = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size=10)
+
 # ==================================================
-# ROBOT CLASS (ยกมาจากโค้ดของคุณทั้งหมด)
+# ROBOT CLASS
 # ==================================================
 
 class PID:
     def __init__(self, kp, ki, kd, min_val, max_val):
         self.kp, self.ki, self.kd = kp, ki, kd
         self.min_val, self.max_val = min_val, max_val
-        self.integral, self.last_error = 0.0, 0.0
-
+        self.integral, self.last_error = 0.0, 0.0   
+        
     def compute(self, error, dt):
         self.integral += error * dt
         derivative = (error - self.last_error) / dt
@@ -27,12 +29,16 @@ class PID:
 class OdomRobot:
     def __init__(self):
         rospy.init_node("odom_robot")
-        self.pub = rospy.Publisher("/mobile_base/commands/velocity", Twist, queue_size=10)
+        self.pub = velocity_publisher # ใช้ตัวแปรเดียวกับ API
         rospy.Subscriber("/odom", Odometry, self.odom_callback)
+        
+        # กำหนดค่า PID ไว้ที่นี่ก่อนเริ่มทำงาน
+        self.pid_straight = PID(kp=1.5, ki=0.0, kd=0.1, min_val=-0.4, max_val=0.4)
+        self.pid_rotate = PID(kp=1.2, ki=0.01, kd=0.05, min_val=-0.6, max_val=0.6)
+        
         self.raw_x, self.raw_y, self.raw_yaw = 0.0, 0.0, 0.0
         self.x, self.y, self.yaw = 0.0, 0.0, 0.0
         self.offset_x, self.offset_y, self.offset_yaw = 0.0, 0.0, 0.0
-        
 
         rospy.sleep(1)
         rospy.loginfo("=== START HOME SEQUENCE ===")
@@ -42,9 +48,6 @@ class OdomRobot:
         self.rotate(math.pi)
         self.reset_home()
         rospy.loginfo("=== ROBOT READY (HOME=0,0,0) ===")
-
-        self.pid_straight = PID(kp=1.5, ki=0.0, kd=0.1, min_val=-0.4, max_val=0.4)
-        self.pid_rotate = PID(kp=1.2, ki=0.01, kd=0.05, min_val=-0.6, max_val=0.6)
 
     def odom_callback(self, msg):
         self.raw_x = msg.pose.pose.position.x
@@ -58,20 +61,18 @@ class OdomRobot:
 
     def move_forward(self, distance):
         start_x, start_y = self.x, self.y
-        target_yaw = self.yaw # ล็อกองศาปัจจุบันไว้เป็นเป้าหมาย
+        target_yaw = self.yaw 
         rate = rospy.Rate(20)
-        self.pid_straight.integral = 0 # reset ค่าค้างเก่า
+        self.pid_straight.integral = 0 
         
         while not rospy.is_shutdown():
             traveled = math.sqrt((self.x-start_x)**2 + (self.y-start_y)**2)
             if traveled >= distance: break
             
-            # คำนวณหาความเบี้ยว (Error)
             error_yaw = math.atan2(math.sin(target_yaw - self.yaw), math.cos(target_yaw - self.yaw))
-            
             twist = Twist()
             twist.linear.x = 0.2
-            twist.angular.z = self.pid_straight.compute(error_yaw, 0.05) # ส่ง error ไปให้ PID แก้
+            twist.angular.z = self.pid_straight.compute(error_yaw, 0.05)
             
             self.pub.publish(twist)
             rate.sleep()
@@ -81,14 +82,13 @@ class OdomRobot:
     def rotate(self, angle):
         target_yaw = math.atan2(math.sin(self.yaw + angle), math.cos(self.yaw + angle))
         rate = rospy.Rate(30)
-        self.pid_rotate.integral = 0 # reset ค่าค้างเก่า
+        self.pid_rotate.integral = 0 
         
         while not rospy.is_shutdown():
             error = math.atan2(math.sin(target_yaw - self.yaw), math.cos(target_yaw - self.yaw))
-            if abs(error) < 0.01: break # ปรับให้ละเอียดขึ้นเป็น 0.01
+            if abs(error) < 0.01: break
             
             twist = Twist()
-            # ใช้ PID คำนวณความเร็วหมุน ยิ่งใกล้เป้าหมายจะยิ่งเบาเครื่องลง
             twist.angular.z = self.pid_rotate.compute(error, 1.0/30.0)
             
             self.pub.publish(twist)
