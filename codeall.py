@@ -4,6 +4,7 @@ import math
 import signal
 import sys
 import threading
+import json, os
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
@@ -14,6 +15,7 @@ from flask import Flask, request, jsonify
 # ==================================================
 is_navigating = False
 current_location = 1
+POSITION_FILE = "/tmp/robot_last_position.json"
 # ประกาศ Publisher ไว้ด้านนอกเพื่อให้ทุกส่วนเรียกใช้ได้
 velocity_publisher = None
 
@@ -27,6 +29,7 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
+
 
 # ==================================================
 # PID CONTROLLER CLASS
@@ -54,7 +57,7 @@ class OdomRobot:
         self.pub = velocity_publisher 
         rospy.Subscriber("/odom", Odometry, self.odom_callback)
         
-        self.pid_straight = PID(kp=2.5, ki=0.0, kd=0.1, min_val=-0.4, max_val=0.4)
+        self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1, min_val=-0.4, max_val=0.4)
         self.pid_rotate = PID(kp=1.2, ki=0.01, kd=0.05, min_val=-0.6, max_val=0.6)
         
         self.raw_x, self.raw_y, self.raw_yaw = 0.0, 0.0, 0.0
@@ -108,17 +111,14 @@ class OdomRobot:
         self.yaw = 0.0
         rospy.sleep(0.5)
 
-    def move_forward(self, distance):
+    def move_forward(self, distance,bias=0.0):
         start_x, start_y = self.x, self.y
         target_yaw = self.yaw 
         rate = rospy.Rate(20)
-        
-        # ปรับความเร็วเพิ่มขึ้น (แนะนำ 0.2 - 0.4 m/s สำหรับ TurtleBot2 ที่แบกของ)
-        # 0.15 -> 0.30
         LINEAR_SPEED = 0.30 
         
-        # Bias ชดเชยการเบี่ยง (ถ้ายังมีปัญหาเบี่ยงขวา)
-        steering_bias = 0.03 
+        self.pid_straight.integral = 0.0
+        self.pid_straight.last_error = 0.0
         
         while not rospy.is_shutdown() and is_navigating:
             traveled = math.sqrt((self.x-start_x)**2 + (self.y-start_y)**2)
@@ -130,7 +130,7 @@ class OdomRobot:
             twist.linear.x = LINEAR_SPEED # ใช้ความเร็วใหม่ที่ตั้งไว้
             
             # เมื่อวิ่งเร็วขึ้น PID ต้องทำงานหนักขึ้น
-            twist.angular.z = self.pid_straight.compute(error_yaw, 0.05) + steering_bias
+            twist.angular.z = self.pid_straight.compute(error_yaw, 0.05) + bias
             
             self.pub.publish(twist)
             rate.sleep()
@@ -162,20 +162,22 @@ class OdomRobot:
         rospy.sleep(0.2)
         
     def execute_path(self, start, target):
-        # ... (ใส่ Dictionary paths ทั้งหมดที่คุณเขียนไว้ตรงนี้) ...
+        # ... (ใส่ Dictionary paths ทั้งหมดที่คุณเขียนไว้ตรงนี้) ..
+        l=-0.01
+        r=0.03
         paths = {
-    (1, 2): [("rotate", -90), ("move", 6.5),  ("rotate", 90), ("move", 5.0),("move", 5.0),("move", 5.2),("rotate", 90),("move", 1.0)],
-    (1, 3): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 28.0),("rotate", 90),("move", 2.0)],
-    (1, 4): [("rotate", -90), ("move", 6.5)],
+    (1, 2): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 5.0),("move", 5.0),("move", 5.2),("rotate", 90),("move", 1.0)],
+    (1, 3): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 8.0),("move", 8.0),("move",8.0),("move", 3.2),("rotate", 90),("move", 1.0)],
+    (1, 4): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0),("move", 10.0),("move", 10.0),("move", 10.8)],
     (1, 5): [("rotate", -90), ("move", 6.5)],
     (1, 6): [("rotate", -90), ("move", 6.5)],
     (1, 7): [("rotate", -90), ("move", 6.5)],
-    (1, 8): [("rotate", -90), ("move", 15.0),("rotate", 90),("move", 20.0),("rotate", -90),("move", 1.0)],
-    (1, 9): [("rotate", -90), ("move", 15.0),("rotate", 90),("move", 15.0),("rotate", -90),("move", 1.0)],
-    (1, 10): [("rotate", -90), ("move", 15.0),("rotate", 90),("move", 10.0),("rotate", -90),("move", 1.0)],
-    (1, 11): [("rotate", -90), ("move", 15.0),("rotate", 90),("move", 5.0),("rotate", -90),("move", 1.0)],
+    (1, 8): [("rotate", -90), ("move", 5.0, 0.03 ),("move", 5.0, 0.03),("move", 5.0),("rotate", 90),("move", 5.0),("move", 5.0),("move", 5.0),("move", 5.0 ),("move", 5.0),("move", 4.0),("rotate", -90),("move", 1.0)],	
+    (1, 9): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0),("move", 5.0),("move", 5.0),("rotate", -90),("move", 1.0)],
+    (1, 10): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0),("move", 5.0),("rotate", -90),("move", 1.0)],
+    (1, 11): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0),("rotate", -90),("move", 1.0)],
     (2, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (2, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 8.0),],
+    (2, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 8.0)],
     (2, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (2, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (2, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -235,15 +237,15 @@ class OdomRobot:
     (7, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (7, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (8, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (8, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+    (8, 2): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0),("move", 2.2),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", 90),("move", 8.0),("move", 8.0),("move", 5.6),("rotate", -90),("move", 1.0),],
+    (8, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0),("move", 2.2),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", 90),("move", 5.0),("move", 4.6),("rotate", -90),("move", 1.0)],
     (8, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (8, 9): [("rotate", 180),("move", 0.8),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
-    (8, 10): [("rotate", 180),("move", 0.8),("rotate", 90),("move", 16.0),("rotate", 90),("move", 1.0)],
-    (8, 11): [("rotate", 180),("move", 0.8),("rotate", 90),("move", 24.0),("rotate", 90),("move", 1.0)],
+    (8, 9): [("rotate", 180),("move", 0.8,0.0),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (8, 10): [("rotate", 180),("move", 0.8,0.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (8, 11): [("rotate", 180),("move", 0.8,0.0),("rotate", 90),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
     (9, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
     (9, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
     (9, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -253,7 +255,7 @@ class OdomRobot:
     (9, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (9, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("rotate", -90),("move", 1.0)],
     (9, 10): [("rotate", 180),("move", 1.0),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
-    (9, 11): [("rotate", 180),("move", 1.0),("rotate", 90),("move", 16.0),("rotate", 90),("move", 1.0)],
+    (9, 11): [("rotate", 180),("move", 1.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
     (10, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
     (10, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
     (10, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -261,7 +263,7 @@ class OdomRobot:
     (10, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (10, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (10, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (10, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 16.0),("rotate", -90),("move", 1.0)],
+    (10, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("rotate", -90),("move", 1.0)],
     (10, 9): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("rotate", -90),("move", 1.0)],
     (10, 11): [("rotate", 180),("move", 1.5),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
     (11, 1): [("rotate", 180), ("move", 1.0), ("rotate", 90),("move", 8.0),("rotate", -90),("move", 15)],
@@ -271,20 +273,26 @@ class OdomRobot:
     (11, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (11, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (11, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (11, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 24.0),("rotate", -90),("move", 1.0)],
-    (11, 9): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 16.0),("rotate", -90),("move", 1.0)],
-    (11, 10): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("rotate", -90),("move", 1.0)],} # ตัวอย่าง
+    (11, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 5.0),("move", 5.0),("move", 4.0),("rotate", -90),("move", 1.0)],
+    (11, 9): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 6.0),("rotate", -90),("move", 1.0)],
+    (11, 10): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("rotate", -90),("move", 1.0)]} 
+        
         
         key = (start, target)
         if key in paths:
             rospy.loginfo(f"Starting path from {start} to {target}")
-            for action, value in paths[key]:
+            for cmd in paths[key]:
                 if not is_navigating: break # หยุดถ้ามีการสั่ง Stop ผ่าน API
-                if action == "move": 
-                    rospy.loginfo(f"Moving {value} meters...")
-                    self.move_forward(value)
+                action = cmd[0]
+                
+                if action == "move":
+                    dist = [1]
+                    bias = cmd[2] if len(cmd) > 2 else 0.0 
+                    self.move_forward(dist,bias)
+                    
                 elif action == "rotate": 
-                    self.rotate(math.radians(value))
+                    angle = cmd[1]
+                    self.rotate(math.radians(angle))
                     rospy.sleep(0.5)
             return True
         rospy.logwarn(f"Path not found for {key}")
@@ -320,7 +328,7 @@ def handle_command():
 def get_status():
     return jsonify({
         "is_navigating": is_navigating,
-        "current_node": current_location,
+        "current_location": current_location,
         "position": {"x": round(my_robot.x, 2), "y": round(my_robot.y, 2)},
         "yaw_deg": round(math.degrees(my_robot.yaw), 2)
     })
