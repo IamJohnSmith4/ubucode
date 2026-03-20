@@ -4,6 +4,7 @@ import math
 import signal
 import sys
 import threading
+import json, os
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
@@ -14,6 +15,7 @@ from flask import Flask, request, jsonify
 # ==================================================
 is_navigating = False
 current_location = 1
+POSITION_FILE = "/tmp/robot_last_position.json"
 # ประกาศ Publisher ไว้ด้านนอกเพื่อให้ทุกส่วนเรียกใช้ได้
 velocity_publisher = None
 
@@ -27,6 +29,7 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
+
 
 # ==================================================
 # PID CONTROLLER CLASS
@@ -49,27 +52,38 @@ class PID:
 # ==================================================
 class OdomRobot:
     def __init__(self):
+        global is_navigating
         rospy.init_node("odom_robot")
-        self.pub = velocity_publisher # ใช้ตัวแปรเดียวกับ API
+        self.pub = velocity_publisher 
         rospy.Subscriber("/odom", Odometry, self.odom_callback)
         
-        # กำหนดค่า PID ไว้ที่นี่ก่อนเริ่มทำงาน
-        self.pid_straight = PID(kp=1.5, ki=0.0, kd=0.1, min_val=-0.4, max_val=0.4)
+        self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1, min_val=-0.4, max_val=0.4)
         self.pid_rotate = PID(kp=1.2, ki=0.01, kd=0.05, min_val=-0.6, max_val=0.6)
         
         self.raw_x, self.raw_y, self.raw_yaw = 0.0, 0.0, 0.0
         self.x, self.y, self.yaw = 0.0, 0.0, 0.0
         self.offset_x, self.offset_y, self.offset_yaw = 0.0, 0.0, 0.0
 
+        # Wait for the first odom message to ensure we have valid raw data
+        rospy.loginfo("Waiting for odom data...")
+        rospy.wait_for_message("/odom", Odometry)
         rospy.sleep(1)
-        rospy.loginfo("=== START HOME SEQUENCE ===")
-        self.move_forward(2.5)
-        self.rotate(-math.pi / 2)
-        self.move_forward(0.5)
-        self.rotate(math.pi)
-        self.reset_home()
-        rospy.loginfo("=== ROBOT READY (HOME=0,0,0) ===")
 
+        # 1. Capture current position as (0,0) immediately
+        self.reset_home()
+        
+        # 2. Start Home Sequence
+        rospy.loginfo("=== START HOME SEQUENCE ===")
+        is_navigating = True  # Must be True for loops to run
+        self.move_forward(2.5)
+        self.rotate(math.radians(-90))
+        self.move_forward(0.5)
+        self.rotate(math.radians(180))
+        
+        # 3. Final Reset after movement to ensure we start at exact 0,0
+        self.reset_home()
+        is_navigating = False 
+        rospy.loginfo("=== ROBOT READY (HOME=0,0,0) ===")
 
     def odom_callback(self, msg):
         self.raw_x = msg.pose.pose.position.x
@@ -77,28 +91,50 @@ class OdomRobot:
         q = msg.pose.pose.orientation
         (_, _, yaw) = euler_from_quaternion([q.x, q.y, q.z, q.w])
         self.raw_yaw = yaw
+        
+        # Corrected: Subtract initial raw offset
         self.x = self.raw_x - self.offset_x
         self.y = self.raw_y - self.offset_y
+        
+        # Corrected: Use atan2 to normalize the angle difference
         diff_yaw = self.raw_yaw - self.offset_yaw
         self.yaw = math.atan2(math.sin(diff_yaw), math.cos(diff_yaw))
 
-    def move_forward(self, distance):
+    def reset_home(self):
+        # Corrected: Set the offset to the current RAW values
+        self.offset_x = self.raw_x
+        self.offset_y = self.raw_y
+        self.offset_yaw = self.raw_yaw
+        # Explicitly zero out the relative coordinates
+        self.x = 0.0
+        self.y = 0.0
+        self.yaw = 0.0
+        rospy.sleep(0.5)
+
+    def move_forward(self, distance,bias=0.0):
         start_x, start_y = self.x, self.y
         target_yaw = self.yaw 
         rate = rospy.Rate(20)
-        self.pid_straight.integral = 0 
+        LINEAR_SPEED = 0.30 
+        
+        self.pid_straight.integral = 0.0
+        self.pid_straight.last_error = 0.0
         
         while not rospy.is_shutdown() and is_navigating:
             traveled = math.sqrt((self.x-start_x)**2 + (self.y-start_y)**2)
             if traveled >= distance: break
             
             error_yaw = math.atan2(math.sin(target_yaw - self.yaw), math.cos(target_yaw - self.yaw))
+            
             twist = Twist()
-            twist.linear.x = 0.15
-            twist.angular.z = self.pid_straight.compute(error_yaw, 0.05)
+            twist.linear.x = LINEAR_SPEED # ใช้ความเร็วใหม่ที่ตั้งไว้
+            
+            # เมื่อวิ่งเร็วขึ้น PID ต้องทำงานหนักขึ้น
+            twist.angular.z = self.pid_straight.compute(error_yaw, 0.05) + bias
             
             self.pub.publish(twist)
             rate.sleep()
+            
         self.pub.publish(Twist())
         rospy.sleep(0.3)
 
@@ -119,42 +155,37 @@ class OdomRobot:
         self.pub.publish(Twist())
         rospy.sleep(0.3)
         
-    def reset_home(self):
-        self.offset_x += self.x
-        self.offset_y += self.y
-        self.offset_yaw += self.yaw
-        rospy.sleep(0.2)
-        
     def execute_path(self, start, target):
-        # ... (ใส่ Dictionary paths ทั้งหมดที่คุณเขียนไว้ตรงนี้) ...
+        # ... (ใส่ Dictionary paths ทั้งหมดที่คุณเขียนไว้ตรงนี้) ..
+        l,r=-0.04,0.03
         paths = {
-    (1, 2): [("rotate", -90), ("move", 6.5),  ("rotate", 90), ("move", 5.0),("move", 5.0),("move", 5.2),("rotate", 90),("move", 1.0)],
-    (1, 3): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 2.0)],
-    (1, 4): [("rotate", -90), ("move", 6.5)],
-    (1, 5): [("rotate", -90), ("move", 6.5)],
-    (1, 6): [("rotate", -90), ("move", 6.5)],
-    (1, 7): [("rotate", -90), ("move", 6.5)],
-    (1, 8): [("rotate", -90), ("move", 6.5)],
-    (1, 9): [("rotate", -90), ("move", 6.5)],
-    (1, 10): [("rotate", -90), ("move", 6.5)],
-    (1, 11): [("rotate", -90), ("move", 6.5)],
+    (1, 2): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 5.0, l),("move", 5.0, l),("move", 5.2),("rotate", 90),("move", 1.0)],
+    (1, 3): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 8.0, l),("move", 8.0, l),("move",8.0),("move", 3.2),("rotate", 90),("move", 1.0)],
+    (1, 4): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
+    (1, 5): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 6.0),("move", 6.0),("move", 4.0),("rotate", 90),("move", 1.0)],
+    (1, 6): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0),("move", 10.0, l),("move", 10.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 6.0),("move", 6.0),("move", 4.0),("rotate", 90),("move", 1.0)],
+    (1, 7): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
+    (1, 8): [("rotate", -90), ("move", 5.0, r),("move", 5.0),("move", 5.0, r),("rotate", 90),("move", 5.0, r),("move", 5.0),("move", 5.0),("move", 5.0 ),("move", 5.0),("move", 4.0),("rotate", -90),("move", 1.0)],	
+    (1, 9): [("rotate", -90), ("move", 5.0, r),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, r),("move", 5.0, r),("move", 5.0, r),("rotate", -90),("move", 1.0)],
+    (1, 10): [("rotate", -90), ("move", 5.0, r),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, r),("move", 5.0, r),("rotate", -90),("move", 1.0)],
+    (1, 11): [("rotate", -90), ("move", 5.0, r),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0),("rotate", -90),("move", 1.0)],
     (2, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (2, 3): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (2, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 8): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+    (2, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 6.0,-0.05),("move", 6.5),("rotate", 90),("move", 1.0)],
+    (2, 4): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0),("move", 7.0),("move", 7.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
+    (2, 5): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0),("move", 7.0),("move", 7.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", -90),("move", 1.0)],
+    (2, 6): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0),("move", 7.0),("move", 7.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move",1.0)],
+    (2, 7): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0),("move", 7.0),("move", 7.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", -90),("move",1.0)],
+    (2, 8): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 10.0, l),("move", 11.6),("rotate", -90),("move", 4.4),("move", 4.2),("rotate", -90),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (2, 9): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 10.0, l),("move", 11.6),("rotate", -90),("move", 4.4),("move", 4.2),("rotate", -90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (2, 10): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 10.0, l),("move", 11.6),("rotate", -90),("move", 4.4),("move", 4.2),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (2, 11): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 10.0, l),("move", 11.6),("rotate", -90),("move", 4.4),("move", 4.2),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
     (3, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (3, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (3, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (3, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (3, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (3, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (3, 8): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+    (3, 2): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 6.0),("move", 6.5),("rotate", -90),("move", 1.0)],
+    (3, 4): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("move", 5.4),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
+    (3, 5): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("move", 5.4),("rotate", -90),("move", 4.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", -90),("move", 1.0)],
+    (3, 6): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("move", 5.4),("rotate", -90),("move", 4.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (3, 7): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("move", 5.4),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", -90),("move", 1.0)],
+    (3, 8): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0, l),("move", 4.3),("rotate", -90),("move", 5.2),("move", 4.2),("rotate", -90),("move", 8.0),("move", 5.6),("rotate", 90),("move", 1.0)],
     (3, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (3, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (3, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -199,15 +230,15 @@ class OdomRobot:
     (7, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (7, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (8, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (8, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+    (8, 2): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0),("move", 2.2),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", 90),("move", 8.0),("move", 8.0),("move", 5.6),("rotate", -90),("move", 1.0)],
+    (8, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0),("move", 2.2),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", 90),("move", 5.0),("move", 4.6),("rotate", -90),("move", 1.0)],
     (8, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (8, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (8, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (8, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+    (8, 9): [("rotate", 180),("move", 0.8),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (8, 10): [("rotate", 180),("move", 0.8),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (8, 11): [("rotate", 180),("move", 0.8),("rotate", 90),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
     (9, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
     (9, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
     (9, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -215,9 +246,9 @@ class OdomRobot:
     (9, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (9, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (9, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (9, 8): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (9, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (9, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+    (9, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("rotate", -90),("move", 1.0)],
+    (9, 10): [("rotate", 180),("move", 1.0),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (9, 11): [("rotate", 180),("move", 1.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
     (10, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
     (10, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
     (10, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -225,42 +256,54 @@ class OdomRobot:
     (10, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (10, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (10, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (10, 8): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (10, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (10, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (11, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
+    (10, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("rotate", -90),("move", 1.0)],
+    (10, 9): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("rotate", -90),("move", 1.0)],
+    (10, 11): [("rotate", 180),("move", 1.5),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (11, 1): [("rotate", 180), ("move", 1.0), ("rotate", 90),("move", 8.0),("rotate", -90),("move", 15)],
     (11, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
     (11, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (11, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (11, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (11, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (11, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (11, 8): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (11, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (11, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],} # ตัวอย่าง
+    (11, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 5.0),("move", 5.0),("move", 4.0),("rotate", -90),("move", 1.0)],
+    (11, 9): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 6.0),("rotate", -90),("move", 1.0)],
+    (11, 10): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("rotate", -90),("move", 1.0)]} 
+        
         
         key = (start, target)
         if key in paths:
             rospy.loginfo(f"Starting path from {start} to {target}")
-            for action, value in paths[key]:
+           	
+            
+            for cmd in paths[key]:
                 if not is_navigating: break # หยุดถ้ามีการสั่ง Stop ผ่าน API
-                if action == "move": 
-                    rospy.loginfo(f"Moving {value} meters...")
-                    self.move_forward(value)
+                action = cmd[0]
+                
+                if action == "move":
+                    raw_dist = cmd[1]
+                    dist = float(raw_dist[0]) if isinstance(raw_dist,(list,tuple)) else float(raw_dist)
+                    bias = 0.0
+                    
+                    if len(cmd) > 2:
+                        raw_dist = cmd[2]
+                        bias = float(raw_dist[0]) if isinstance(raw_dist,(list,tuple)) else float(raw_dist)
+                    self.move_forward(dist, bias)
+                   
                 elif action == "rotate": 
-                    self.rotate(math.radians(value))
+                    angle = cmd[1]
+                    self.rotate(math.radians(angle))
                     rospy.sleep(0.5)
+            self.pub.publish(Twist())
             return True
-        rospy.logwarn(f"Path not found for {key}")
         return False
-
 # ==================================================
 # FLASK API SERVER
 # ==================================================
 app = Flask(__name__)
 my_robot = None
 
-@app.route('/command', methods=['POST'])
+@app.route('/command', methods=['POST'])	
 def handle_command():
     global is_navigating
     data = request.json
@@ -284,7 +327,7 @@ def handle_command():
 def get_status():
     return jsonify({
         "is_navigating": is_navigating,
-        "current_node": current_location,
+        "current_location": current_location,
         "position": {"x": round(my_robot.x, 2), "y": round(my_robot.y, 2)},
         "yaw_deg": round(math.degrees(my_robot.yaw), 2)
     })
@@ -303,6 +346,9 @@ if __name__ == "__main__":
     # 2. สร้าง Robot Object
     my_robot = OdomRobot()
     
+    current_location = 1 
+    is_navigating = False
+	
     # 3. เริ่ม Flask Server (ปิด Debug เพื่อไม่ให้รันซ้ำ)
     print("--- Robot Server Ready on Port 5000 ---")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
