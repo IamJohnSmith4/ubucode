@@ -30,24 +30,7 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def save_position(node):
-    """บันทึกตำแหน่งล่าสุดลงไฟล์"""
-    with open(POSITION_FILE, 'w') as f:
-        json.dump({"current_location": node}, f)
 
-def load_position():
-    """โหลดตำแหน่งล่าสุดตอนเปิดโปรแกรม"""
-    if os.path.exists(POSITION_FILE):
-        try:
-            with open(POSITION_FILE, 'r') as f:
-                data = json.load(f)
-                return data.get("current_location", 1)
-        except:
-            pass
-    return 1  # default = Home
-
-# โหลดตำแหน่งตอนเริ่ม
-current_location = load_position()
 # ==================================================
 # PID CONTROLLER CLASS
 # ==================================================
@@ -74,7 +57,7 @@ class OdomRobot:
         self.pub = velocity_publisher 
         rospy.Subscriber("/odom", Odometry, self.odom_callback)
         
-        self.pid_straight = PID(kp=2.5, ki=0.0, kd=0.1, min_val=-0.4, max_val=0.4)
+        self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1, min_val=-0.4, max_val=0.4)
         self.pid_rotate = PID(kp=1.2, ki=0.01, kd=0.05, min_val=-0.6, max_val=0.6)
         
         self.raw_x, self.raw_y, self.raw_yaw = 0.0, 0.0, 0.0
@@ -132,8 +115,10 @@ class OdomRobot:
         start_x, start_y = self.x, self.y
         target_yaw = self.yaw 
         rate = rospy.Rate(20)
-    
         LINEAR_SPEED = 0.30 
+        
+        self.pid_straight.integral = 0.0
+        self.pid_straight.last_error = 0.0
         
         while not rospy.is_shutdown() and is_navigating:
             traveled = math.sqrt((self.x-start_x)**2 + (self.y-start_y)**2)
@@ -170,48 +155,49 @@ class OdomRobot:
         self.pub.publish(Twist())
         rospy.sleep(0.3)
         
-    def reset_home(self):
-        self.offset_x += self.x
-        self.offset_y += self.y
-        self.offset_yaw += self.yaw
-        rospy.sleep(0.2)
-        
     def execute_path(self, start, target):
-        # ... (ใส่ Dictionary paths ทั้งหมดที่คุณเขียนไว้ตรงนี้) ...
+        # ... (ใส่ Dictionary paths ทั้งหมดที่คุณเขียนไว้ตรงนี้) ..
+        l,r=-0.04,0.03
         paths = {
-    (1, 2): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 5.0),("move", 5.0),("move", 5.2),("rotate", 90),("move", 1.0)],
-    (1, 3): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 8.0),("move", 8.0),("move",8.0),("rotate", 90),("move", 2.0)],
-    (1, 4): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", )],
-    (1, 5): [("rotate", -90), ("move", 6.5)],
-    (1, 6): [("rotate", -90), ("move", 6.5)],
-    (1, 7): [("rotate", -90), ("move", 6.5)],
-    (1, 8): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0),("move", 5.0),("move", 5.0),("move", 5.0),("move", 5.0),("move", 4.0),("rotate", -90),("move", 1.0)],
-    (1, 9): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0),("move", 5.0),("move", 5.0),("rotate", -90),("move", 1.0)],
-    (1, 10): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0),("move", 5.0),("rotate", -90),("move", 1.0)],
-    (1, 11): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0),("rotate", -90),("move", 1.0)],
-    (2, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (2, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 8.0),],
-    (2, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 8): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (2, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (3, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (3, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (3, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (3, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (3, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (3, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (3, 8): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+    (1, 2): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 5.0, l), ("move", 5.0, l), ("move", 5.2), ("rotate", 90), ("move", 1.0)],
+    (1, 3): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 8.0, l), ("move", 8.0, l), ("move", 8.0), ("move", 3.2), ("rotate", 90), ("move", 1.0)],
+    (1, 4): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 10.0, l), ("move", 10.0, l), ("move", 10.0, l), ("move", 10.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 5.6), ("rotate", 90), ("move", 1.0)],
+    (1, 5): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 10.0, l), ("move", 10.0, l), ("move", 10.0, l), ("move", 10.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 6.0), ("move", 6.0), ("move", 4.0), ("rotate", 90), ("move", 1.0)],
+    (1, 6): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 10.0, l), ("move", 10.0), ("move", 10.0, l), ("move", 10.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 6.0), ("move", 6.0), ("move", 4.0), ("rotate", 90), ("move", 1.0)],
+    (1, 7): [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 10.0, l), ("move", 10.0, l), ("move", 10.0, l), ("move", 10.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 5.6), ("rotate", 90), ("move", 1.0)],
+    (1, 8): [("rotate", -90), ("move", 5.0, r), ("move", 5.0), ("move", 5.0, r), ("rotate", 90), ("move", 5.0, r), ("move", 5.0), ("move", 5.0), ("move", 5.0), ("move", 5.0), ("move", 4.0), ("rotate", -90), ("move", 1.0)],
+    (1, 9): [("rotate", -90), ("move", 5.0, r), ("move", 5.0), ("move", 5.0), ("rotate", 90), ("move", 5.0, r), ("move", 5.0, r), ("move", 5.0, r), ("rotate", -90), ("move", 1.0)],
+    (1, 10): [("rotate", -90), ("move", 5.0, r), ("move", 5.0), ("move", 5.0), ("rotate", 90), ("move", 5.0, r), ("move", 5.0, r), ("rotate", -90), ("move", 1.0)],
+    (1, 11): [("rotate", -90), ("move", 5.0, r), ("move", 5.0), ("move", 5.0), ("rotate", 90), ("move", 5.0), ("rotate", -90), ("move", 1.0)],
+ 
+    # ── จาก node 2 ──────────────────────────────────────────────────────────
+    (2, 1): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 5.2), ("move", 5.0, l), ("move", 5.0, l), ("rotate", -90), ("move", 6.5), ("rotate", 90)],
+    (2, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 6.0, -0.05), ("move", 6.5), ("rotate", 90), ("move", 1.0)],
+    (2, 4): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 7.0), ("move", 7.0), ("move", 7.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 5.6), ("rotate", 90), ("move", 1.0)],
+    (2, 5): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 7.0), ("move", 7.0), ("move", 7.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 8.0), ("move", 8.0), ("rotate", -90), ("move", 1.0)],
+    (2, 6): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 7.0), ("move", 7.0), ("move", 7.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 8.0), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+    (2, 7): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 7.0), ("move", 7.0), ("move", 7.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 5.6), ("rotate", -90), ("move", 1.0)],
+    (2, 8): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 10.0, l), ("move", 11.6), ("rotate", -90), ("move", 4.4), ("move", 4.2), ("rotate", -90), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+    (2, 9): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 10.0, l), ("move", 11.6), ("rotate", -90), ("move", 4.4), ("move", 4.2), ("rotate", -90), ("move", 8.0), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+    (2, 10): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 10.0, l), ("move", 11.6), ("rotate", -90), ("move", 4.4), ("move", 4.2), ("rotate", -90), ("move", 8.0), ("move", 8.0), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+    (2, 11): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 10.0, l), ("move", 11.6), ("rotate", -90), ("move", 4.4), ("move", 4.2), ("rotate", -90), ("move", 8.0), ("move", 8.0), ("move", 8.0), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+ 
+    # ── จาก node 3 ──────────────────────────────────────────────────────────
+    (3, 1): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 3.2), ("move", 8.0), ("move", 8.0, l), ("move", 8.0, l), ("rotate", -90), ("move", 6.5), ("rotate", 90)],
+    (3, 2): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 6.0), ("move", 6.5), ("rotate", -90), ("move", 1.0)],
+    (3, 4): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0), ("move", 5.4), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 5.6), ("rotate", 90), ("move", 1.0)],
+    (3, 5): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0), ("move", 5.4), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 8.0), ("move", 8.0), ("rotate", -90), ("move", 1.0)],
+    (3, 6): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0), ("move", 5.4), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 8.0), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+    (3, 7): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0), ("move", 5.4), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 5.6), ("rotate", -90), ("move", 1.0)],
+    (3, 8): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0, l), ("move", 4.3), ("rotate", -90), ("move", 5.2), ("move", 4.2), ("rotate", -90), ("move", 8.0), ("move", 5.6), ("rotate", 90), ("move", 1.0)],
     (3, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (3, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (3, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (4, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (4, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (4, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+ 
+    # ── จาก node 4 ──────────────────────────────────────────────────────────
+    (4, 1): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 5.6), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 10.0), ("move", 10.0, l), ("move", 10.0, l), ("move", 10.0, l), ("rotate", -90), ("move", 6.5), ("rotate", 90)],
+    (4, 2): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 5.6), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 7.0), ("move", 7.0), ("move", 7.0), ("rotate", -90), ("move", 1.0), ("rotate", -180)],
+    (4, 3): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 5.6), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 5.4), ("move", 5.0), ("rotate", -90), ("move", 1.0), ("rotate", -180)],
     (4, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (4, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (4, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -219,9 +205,11 @@ class OdomRobot:
     (4, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (4, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (4, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (5, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (5, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (5, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+ 
+    # ── จาก node 5 ──────────────────────────────────────────────────────────
+    (5, 1): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 4.0), ("move", 6.0), ("move", 6.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 10.0), ("move", 10.0, l), ("move", 10.0, l), ("move", 10.0, l), ("rotate", -90), ("move", 6.5), ("rotate", 90)],
+    (5, 2): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 8.0), ("move", 8.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 7.0), ("move", 7.0), ("move", 7.0), ("rotate", -90), ("move", 1.0), ("rotate", -180)],
+    (5, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 8.0), ("move", 8.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 5.4), ("move", 5.0), ("rotate", -90), ("move", 1.0), ("rotate", -180)],
     (5, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (5, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (5, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -229,9 +217,11 @@ class OdomRobot:
     (5, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (5, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (5, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (6, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (6, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (6, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+ 
+    # ── จาก node 6 ──────────────────────────────────────────────────────────
+    (6, 1): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 4.0), ("move", 6.0), ("move", 6.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 10.0), ("move", 10.0, l), ("move", 10.0), ("move", 10.0, l), ("rotate", -90), ("move", 6.5), ("rotate", 90)],
+    (6, 2): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 8.0), ("move", 8.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 7.0), ("move", 7.0), ("move", 7.0), ("rotate", -90), ("move", 1.0), ("rotate", -180)],
+    (6, 3): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 8.0), ("move", 8.0), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 5.4), ("move", 5.0), ("rotate", -90), ("move", 1.0), ("rotate", -180)],
     (6, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (6, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (6, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -239,9 +229,11 @@ class OdomRobot:
     (6, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (6, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (6, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (7, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (7, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (7, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+ 
+    # ── จาก node 7 ──────────────────────────────────────────────────────────
+    (7, 1): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 5.6), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 10.0), ("move", 10.0, l), ("move", 10.0, l), ("move", 10.0, l), ("rotate", -90), ("move", 6.5), ("rotate", 90)],
+    (7, 2): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.6), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 7.0), ("move", 7.0), ("move", 7.0), ("rotate", -90), ("move", 1.0), ("rotate", -180)],
+    (7, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.6), ("rotate", -90), ("move", 4.0), ("rotate", 90), ("move", 5.4), ("move", 5.0), ("rotate", -90), ("move", 1.0), ("rotate", -180)],
     (7, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (7, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (7, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -249,16 +241,20 @@ class OdomRobot:
     (7, 9): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (7, 10): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (7, 11): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+ 
+    # ── จาก node 8 ──────────────────────────────────────────────────────────
     (8, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
-    (8, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
-    (8, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
+    (8, 2): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0), ("move", 2.2), ("rotate", 90), ("move", 4.2), ("move", 4.2), ("rotate", 90), ("move", 8.0), ("move", 8.0), ("move", 5.6), ("rotate", -90), ("move", 1.0)],
+    (8, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 5.0), ("move", 2.2), ("rotate", 90), ("move", 4.2), ("move", 4.2), ("rotate", 90), ("move", 5.0), ("move", 4.6), ("rotate", -90), ("move", 1.0)],
     (8, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (8, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (8, 9): [("rotate", 180),("move", 0.8,0.0),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
-    (8, 10): [("rotate", 180),("move", 0.8,0.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
-    (8, 11): [("rotate", 180),("move", 0.8,0.0),("rotate", 90),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (8, 9): [("rotate", 180), ("move", 0.8), ("rotate", 90), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+    (8, 10): [("rotate", 180), ("move", 0.8), ("rotate", 90), ("move", 8.0), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+    (8, 11): [("rotate", 180), ("move", 0.8), ("rotate", 90), ("move", 8.0), ("move", 8.0), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+ 
+    # ── จาก node 9 ──────────────────────────────────────────────────────────
     (9, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
     (9, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
     (9, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -266,9 +262,11 @@ class OdomRobot:
     (9, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (9, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (9, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (9, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("rotate", -90),("move", 1.0)],
-    (9, 10): [("rotate", 180),("move", 1.0),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
-    (9, 11): [("rotate", 180),("move", 1.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (9, 8): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 8.0), ("rotate", -90), ("move", 1.0)],
+    (9, 10): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+    (9, 11): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 8.0), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+ 
+    # ── จาก node 10 ─────────────────────────────────────────────────────────
     (10, 1): [("move", 2.0), ("rotate", -90), ("move", 3.0)],
     (10, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
     (10, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
@@ -276,50 +274,56 @@ class OdomRobot:
     (10, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (10, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (10, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (10, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("rotate", -90),("move", 1.0)],
-    (10, 9): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("rotate", -90),("move", 1.0)],
-    (10, 11): [("rotate", 180),("move", 1.5),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
-    (11, 1): [("rotate", 180), ("move", 1.0), ("rotate", 90),("move", 8.0),("rotate", -90),("move", 15)],
+    (10, 8): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 8.0), ("move", 8.0), ("rotate", -90), ("move", 1.0)],
+    (10, 9): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 8.0), ("rotate", -90), ("move", 1.0)],
+    (10, 11): [("rotate", 180), ("move", 1.5), ("rotate", 90), ("move", 8.0), ("rotate", 90), ("move", 1.0)],
+ 
+    # ── จาก node 11 ─────────────────────────────────────────────────────────
+    (11, 1): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 8.0), ("rotate", -90), ("move", 15)],
     (11, 2): [("rotate", 180), ("move", 3.0), ("rotate", 90), ("move", 2.0)],
     (11, 3): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (11, 4): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (11, 5): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (11, 6): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
     (11, 7): [("move", 1.5), ("rotate", 90), ("move", 2.0)],
-    (11, 8): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 5.0),("move", 5.0),("move", 4.0),("rotate", -90),("move", 1.0)],
-    (11, 9): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 6.0),("rotate", -90),("move", 1.0)],
-    (11, 10): [("rotate", 180),("move", 1.0),("rotate", -90),("move", 8.0),("rotate", -90),("move", 1.0)],} # ตัวอย่าง
+    (11, 8): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 5.0), ("move", 5.0), ("move", 5.0), ("move", 5.0), ("move", 4.0), ("rotate", -90), ("move", 1.0)],
+    (11, 9): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 5.0), ("move", 5.0), ("move", 6.0), ("rotate", -90), ("move", 1.0)],
+    (11, 10): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 8.0), ("rotate", -90), ("move", 1.0)],} 
         
-        special_bias_pairs = [(1,2),(1,3),(1,8),(1,9),(1,10),(1,11),(8,9),(8,10),(8,11),(9,10),(9,11)]
         
         key = (start, target)
         if key in paths:
-            
-            bias_to_use = 0.02 if key in special_bias_pairs else 0.0
-            
             rospy.loginfo(f"Starting path from {start} to {target}")
+           	
             
-            for action, value in paths[key]:
+            for cmd in paths[key]:
                 if not is_navigating: break # หยุดถ้ามีการสั่ง Stop ผ่าน API
+                action = cmd[0]
                 
-                if action == "move": 
-                    rospy.loginfo(f"Moving {value} meters...")
-                    self.move_forward(value, bias=bias_to_use)
+                if action == "move":
+                    raw_dist = cmd[1]
+                    dist = float(raw_dist[0]) if isinstance(raw_dist,(list,tuple)) else float(raw_dist)
+                    bias = 0.0
                     
+                    if len(cmd) > 2:
+                        raw_dist = cmd[2]
+                        bias = float(raw_dist[0]) if isinstance(raw_dist,(list,tuple)) else float(raw_dist)
+                    self.move_forward(dist, bias)
+                   
                 elif action == "rotate": 
-                    self.rotate(math.radians(value))
+                    angle = cmd[1]
+                    self.rotate(math.radians(angle))
                     rospy.sleep(0.5)
+            self.pub.publish(Twist())
             return True
-        rospy.logwarn(f"Path not found for {key}")
         return False
-
 # ==================================================
 # FLASK API SERVER
 # ==================================================
 app = Flask(__name__)
 my_robot = None
 
-@app.route('/command', methods=['POST'])
+@app.route('/command', methods=['POST'])	
 def handle_command():
     global is_navigating
     data = request.json
