@@ -158,22 +158,22 @@ class OdomRobot:
         self.pub.publish(Twist())
         rospy.sleep(0.3)
         
-def execute_path(self, start, target):
+    def execute_path(self, start, target):
         # ... (ใส่ Dictionary paths ทั้งหมดที่คุณเขียนไว้ตรงนี้) ..
         l,r=0.04,-0.04
         paths = {
-    (1, 2): [("rotate", -90), ("move", 6.5), ("rotate", 90),("move", 5.0, l),("move", 5.0, l),("move", 5.2, l),("rotate", 90),("move", 1.0)],
-    (1, 3): [("rotate", -90), ("move", 6.5), ("rotate", 90),("move", 8.0, l),("move", 8.0, l),("move",8.0, l),("move", 3.2),("rotate", 90),("move", 1.0)],
-    (1, 4): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
-    (1, 5): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("rotate", -90),("move", 4.0),("rotate", 90),("move", 6.0),("move", 6.0),("move", 4.0),("rotate", 90),("move", 1.0)],
-    (1, 6): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0),("move", 10.0, l),("move", 10.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 6.0),("move", 6.0),("move", 4.0),("rotate", 90),("move", 1.0)],
-    (1, 7): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
+    (1, 2): [("rotate", -90), ("move", 6.5, 0.01), ("rotate", 90),("move", 5.0, l),("move", 5.0, l),("move", 5.2, l),("rotate", 90),("move", 1.0)],
+    (1, 3): [("rotate", -90), ("move", 6.5, 0.01), ("rotate", 90),("move", 8.0, l),("move", 8.0, l),("move",8.0, l),("move", 3.2),("rotate", 90),("move", 1.0)],
+    (1, 4): [("rotate", -90), ("move", 6.5, 0.01),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
+    (1, 5): [("rotate", -90), ("move", 6.5, 0.01),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("rotate", -90),("move", 4.0),("rotate", 90),("move", 6.0),("move", 6.0),("move", 4.0),("rotate", 90),("move", 1.0)],
+    (1, 6): [("rotate", -90), ("move", 6.5, 0.01),("rotate", 90),("move", 10.0, l),("move", 10.0),("move", 10.0, l),("move", 10.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 6.0),("move", 6.0),("move", 4.0),("rotate", 90),("move", 1.0)],
+    (1, 7): [("rotate", -90), ("move", 6.5, 0.01),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
     (1, 8): [("rotate", -90), ("move", 5.0, r),("move", 5.0, r),("move", 5.0, r),("rotate", 90),("move", 5.0, r),("move", 5.0),("move", 5.0),("move", 5.0 ),("move", 5.0),("move", 4.0),("rotate", -90),("move", 1.0)],	
     (1, 9): [("rotate", -90), ("move", 5.0, r),("move", 5.0, r),("move", 5.0, r),("rotate", 90),("move", 5.0, r),("move", 5.0, r),("move", 5.0, r),("rotate", -90),("move", 1.0)],
     (1, 10):[("rotate", -90), ("move", 5.0, r),("move", 5.0, r),("move", 5.0, r),("rotate", 90),("move", 5.0, r),("move", 5.0, r),("rotate", -90),("move", 1.0)],
     (1, 11):[("rotate", -90), ("move", 5.0, r),("move", 5.0, r),("move", 5.0, r),("rotate", 90),("move", 5.0, r),("rotate", -90),("move", 1.0)],
     (2, 1): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 5.2, r), ("move", 5.0, r), ("move", 5.0, r), ("rotate", -90), ("move", 6.5, 0.01), ("rotate", 90)],
-    (2, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 6.0, l),("move", 6.5, l),("rotate", 90),("move", 1.0)],
+    (2, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 6.0),("move", 6.5),("rotate", 90),("move", 1.0)],
     (2, 4): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0, l),("move", 7.0, l),("move", 7.0, l),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
     (2, 5): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0, l),("move", 7.0, l),("move", 7.0, l),("rotate", -90),("move", 4.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", -90),("move", 1.0)],
     (2, 6): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0, l),("move", 7.0, l),("move", 7.0, l),("rotate", -90),("move", 4.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move",1.0)],
@@ -286,7 +286,7 @@ def execute_path(self, start, target):
                 
                 current_steps += 1
                 current_progress = (current_steps / total_steps )*100
-                rospy.loginfo(f"progress = {current_progress.2f}%")
+                rospy.loginfo(f"progress = {current_progress:.2f}%")
                 
                 action = cmd[0]
                 
