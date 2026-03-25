@@ -112,6 +112,26 @@ class OdomRobot:
         self.yaw = 0.0
         rospy.sleep(0.5)
 
+    def execute_home_sequence(self):
+        global is_navigating
+        rospy.loginfo("--- Starting Manual Reset Home Sequence ---")
+        is_navigating = True  # ตั้งค่าเป็น True เพื่อให้ฟังก์ชัน move/rotate ทำงานได้
+        
+        # หยุดหุ่นก่อนเริ่ม
+        self.pub.publish(Twist())
+        rospy.sleep(1)
+
+        # ลำดับเดิมจากโค้ดของคุณ
+        self.reset_home()
+        self.move_forward(2.5)
+        self.rotate(math.radians(-90))
+        self.move_forward(0.5)
+        self.rotate(math.radians(180))
+        self.reset_home()
+        
+        is_navigating = False # จบการทำงาน
+        rospy.loginfo("--- Home Sequence Completed ---")
+
     def move_forward(self, distance,bias=0.0):
         start_x, start_y = self.x, self.y
         target_yaw = self.yaw 
@@ -168,10 +188,10 @@ class OdomRobot:
     (1, 5): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("rotate", -90),("move", 4.0),("rotate", 90),("move", 6.0, l),("move", 6.0, l),("move", 4.0, l),("rotate", 90),("move", 1.0)],
     (1, 6): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("rotate", -90),("move", 4.0),("rotate", 90),("move", 6.0),("move", 6.0),("move", 4.0),("rotate", 90),("move", 1.0)],
     (1, 7): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, l),("move", 10.0, l),("move", 10.0),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
-    (1, 8): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, 0.01),("move", 5.0),("move", 5.0,-0.02),("move", 5.0),("move", 5.0, 0.01),("move", 4.0),("rotate", -90),("move", 1.0)],	
-    (1, 9): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, r),("move", 5.0),("move", 5.0),("rotate", -90),("move", 1.0)],
-    (1, 10):[("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, r),("move", 5.0),("rotate", -90),("move", 1.0)],
-    (1, 11):[("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, r),("rotate", -90),("move", 1.0)],
+    (1, 8): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, l),("move", 5.0, l),("move", 5.0, l),("move", 5.0, 0.03),("move", 5.0, 0.02),("move", 4.0),("rotate", -90),("move", 1.0)],	
+    (1, 9): [("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, l),("move", 5.0),("move", 5.0, l),("rotate", -90),("move", 1.0)],
+    (1, 10):[("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, l),("move", 5.0),("rotate", -90),("move", 1.0)],
+    (1, 11):[("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, l),("rotate", -90),("move", 1.0)],
     (2, 1): [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 5.2), ("move", 5.0), ("move", 5.0), ("rotate", -90), ("move", 6.5, 0.01), ("rotate", 90)],
     (2, 3): [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 6.0,r),("move", 6.5,r),("rotate", 90),("move", 1.0)],
     (2, 4): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0, l),("move", 7.0, l),("move", 7.0, l),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
@@ -350,6 +370,21 @@ def stop_robot():
     is_navigating = False
     velocity_publisher.publish(Twist())
     return jsonify({"status": "success", "message": "Stopped"}), 200
+    
+@app.route('/command/reset-home', methods=['POST'])
+def handle_reset_home():
+    global is_navigating
+    # 1. หยุดงานเก่า
+    is_navigating = False
+    rospy.sleep(0.5)
+    
+    # 2. รัน Home Sequence (ดึงมาจากคลาส OdomRobot ที่คุณมีอยู่แล้ว)
+    # แนะนำให้รันใน Thread เพื่อไม่ให้ตัว Server ค้าง
+    threading.Thread(target=my_robot.execute_home_sequence).start()
+    
+    return jsonify({"status": "success", "message": "Robot is resetting home..."})
+    
+
 
 if __name__ == "__main__":
     # 1. สร้าง Publisher ก่อน
