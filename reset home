@@ -1,0 +1,20 @@
+# เพิ่มต่อจากฟังก์ชันเดิมในคลาส OdomRobot
+    def execute_home_sequence(self):
+        global is_navigating
+        rospy.loginfo("--- Starting Manual Reset Home Sequence ---")
+        is_navigating = True  # ตั้งค่าเป็น True เพื่อให้ฟังก์ชัน move/rotate ทำงานได้
+        
+        # หยุดหุ่นก่อนเริ่ม
+        self.pub.publish(Twist())
+        rospy.sleep(1)
+
+        # ลำดับเดิมจากโค้ดของคุณ
+        self.reset_home()
+        self.move_forward(2.5)
+        self.rotate(math.radians(-90))
+        self.move_forward(0.5)
+        self.rotate(math.radians(180))
+        self.reset_home()
+        
+        is_navigating = False # จบการทำงาน
+        rospy.loginfo("--- Home Sequence Completed ---")
