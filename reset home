@@ -1,5 +1,5 @@
 # เพิ่มต่อจากฟังก์ชันเดิมในคลาส OdomRobot
-    def execute_home_sequence(self):
+def execute_home_sequence(self):
         global is_navigating
         rospy.loginfo("--- Starting Manual Reset Home Sequence ---")
         is_navigating = True  # ตั้งค่าเป็น True เพื่อให้ฟังก์ชัน move/rotate ทำงานได้
@@ -18,3 +18,17 @@
         
         is_navigating = False # จบการทำงาน
         rospy.loginfo("--- Home Sequence Completed ---")
+
+# เพิ่มลงใน robot_server.py บน Ubuntu
+@app.route('/command/reset-home', methods=['POST'])
+def handle_reset_home():
+    global is_navigating
+    # 1. หยุดงานเก่า
+    is_navigating = False
+    rospy.sleep(0.5)
+    
+    # 2. รัน Home Sequence (ดึงมาจากคลาส OdomRobot ที่คุณมีอยู่แล้ว)
+    # แนะนำให้รันใน Thread เพื่อไม่ให้ตัว Server ค้าง
+    threading.Thread(target=my_robot.execute_home_sequence).start()
+    
+    return jsonify({"status": "success", "message": "Robot is resetting home..."})
