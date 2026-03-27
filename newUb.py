@@ -139,17 +139,34 @@ class OdomRobot:
         LINEAR_SPEED = 0.30
         rospy.loginfo(f"bias = {bias}")
         
+        current_linear_speed = 0.05
+        accel = 0.008
+        min_speed = 0.07
+        decel_dist = 0.4
+        
         self.pid_straight.integral = 0.0
         self.pid_straight.last_error = 0.0
         
         while not rospy.is_shutdown() and is_navigating:
             traveled = math.sqrt((self.x-start_x)**2 + (self.y-start_y)**2)
+            
+            remaining_dist = distance-traveled
+            
             if traveled >= distance: break
+            
+            if remaining_dist > decel_dist:
+                if current_linear_speed < LINEAR_SPEED:
+                	current_linear_speed += accel
+                else:
+                	current_linear_speed = LINEAR_SPEED
+            else:
+            	current_linear_speed = max(min_speed,(remaining_dist/decel_dist)*LINEAR_SPEED)
+                
             
             error_yaw = math.atan2(math.sin(target_yaw - self.yaw), math.cos(target_yaw - self.yaw))
             
             twist = Twist()
-            twist.linear.x = LINEAR_SPEED # ใช้ความเร็วใหม่ที่ตั้งไว้
+            twist.linear.x = current_linear_speed # ใช้ความเร็วใหม่ที่ตั้งไว้
                     
             
             # เมื่อวิ่งเร็วขึ้น PID ต้องทำงานหนักขึ้น
