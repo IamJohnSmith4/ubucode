@@ -113,24 +113,24 @@ class OdomRobot:
         rospy.sleep(0.5)
 
     def execute_home_sequence(self):
-        global is_navigating
-        rospy.loginfo("--- Starting Manual Reset Home Sequence ---")
-        is_navigating = True  # ตั้งค่าเป็น True เพื่อให้ฟังก์ชัน move/rotate ทำงานได้
+        global is_navigating, current_node # สำคัญมาก: ต้องแก้ current_node เป็น 1
         
-        # หยุดหุ่นก่อนเริ่ม
-        self.pub.publish(Twist())
-        rospy.sleep(1)
-
-        # ลำดับเดิมจากโค้ดของคุณ
-        self.reset_home()
+        rospy.loginfo("--- Starting Home Sequence ---")
+        is_navigating = True 
+        
+        # --- ลำดับการขยับหุ่น (ตามโค้ดเดิมของคุณ) ---
+        self.reset_home()           # รีเซ็ตค่า Odom (x, y, theta) เป็น 0
         self.move_forward(2.5)
         self.rotate(math.radians(-90))
         self.move_forward(0.5)
         self.rotate(math.radians(180))
-        self.reset_home()
+        self.reset_home()           # ยืนยัน 0 อีกครั้งที่จุดจอดจริง
         
-        is_navigating = False # จบการทำงาน
-        rospy.loginfo("--- Home Sequence Completed ---")
+        # --- หัวใจสำคัญ: ล้างค่า Node ---
+        current_node = 1             # บังคับให้หุ่นจำว่าตอนนี้อยู่ที่ Node 1 แล้ว
+        is_navigating = False
+        rospy.loginfo("--- Home Sequence Completed: Current Node is 1 ---")
+
 
     def move_forward(self, distance,bias=0.0):
         start_x, start_y = self.x, self.y
@@ -193,7 +193,7 @@ class OdomRobot:
     (1, 10):[("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, l),("move", 5.0, 0.01),("rotate", -90),("move", 1.0)],
     (1, 11):[("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, l),("rotate", -90),("move", 1.0)],
     
-    (2, 1): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.2, l), ("move", 5.0, l), ("move", 5.0, 0.01), ("rotate", -90), ("move", 6.5, 0.01), ("rotate", 90)],
+    (2, 1): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.2), ("move", 5.0), ("move", 5.0), ("rotate", -90), ("move", 6.5, 0.01), ("rotate", 90)],
     (2, 3): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 6.0),("move", 6.5),("rotate", 90),("move", 1.0)],
     (2, 4): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0, l),("move", 7.0, 0.01),("move", 7.0, 0.01),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
     (2, 5): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0, l),("move", 7.0, 0.01),("move", 7.0, 0.01),("rotate", -90),("move", 4.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
@@ -204,7 +204,7 @@ class OdomRobot:
     (2, 10):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0, l),("move", 7.0, 0.01),("move", 7.0, 0.01),("rotate", -90),("move", 5.2),("move", 4.2),("rotate", -90),("move", 8.0, l),("move", 8.0, l),("move", 4.0, l),("move", 4.0),("rotate", 90),("move", 1.0)],
     (2, 11):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 5.2),("rotate", -90),("move", 5.0),("move", 4.2),("rotate", -90),("move", 5.0),("rotate", 90),("move", 1.0)],
     
-    (3, 1): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0, l),("move", 5.0, l),("move", 6.0, l),("move",6.0, 0.01),("move", 5.6, 0.01),("rotate", -90), ("move", 6.5,0.01), ("rotate", 90)],
+    (3, 1): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 6.0),("move",6.0),("move", 5.6),("rotate", -90), ("move", 6.5,0.01), ("rotate", 90)],
     (3, 2): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 6.0, 0.01),("move", 6.5, 0.01),("rotate", -90),("move", 1.0)],
     (3, 4): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0, l),("move", 5.0, 0.01),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
     (3, 5): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0, l),("move", 5.0, 0.01),("rotate", -90),("move", 4.0),("rotate", 90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 1.0)],
@@ -383,17 +383,20 @@ def stop_robot():
     
 @app.route('/command/reset-home', methods=['POST'])
 def handle_reset_home():
-    global is_navigating
-    # 1. หยุดงานเก่า
-    is_navigating = False
-    rospy.sleep(0.5)
+    global is_navigating, current_node # ดึงตัวแปรสถานะมาใช้
     
-    # 2. รัน Home Sequence (ดึงมาจากคลาส OdomRobot ที่คุณมีอยู่แล้ว)
-    # แนะนำให้รันใน Thread เพื่อไม่ให้ตัว Server ค้าง
+    # 1. สั่งหยุดงานเก่าทันที
+    is_navigating = False
+    rospy.loginfo("Reset signal received: Stopping current task...")
+    
+    # 2. รัน Home Sequence ใน Thread แยก (เพื่อไม่ให้ Flask ค้าง)
+    # my_robot คือ Object ของคลาส OdomRobot ที่คุณสร้างไว้
     threading.Thread(target=my_robot.execute_home_sequence).start()
     
-    return jsonify({"status": "success", "message": "Robot is resetting home..."})
-    
+    return jsonify({
+        "status": "success", 
+        "message": "Robot is executing home sequence and resetting node to 1"
+    }), 200
 
 
 if __name__ == "__main__":
