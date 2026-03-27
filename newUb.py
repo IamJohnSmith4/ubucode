@@ -195,7 +195,7 @@ class OdomRobot:
         self.pub.publish(Twist())
         rospy.sleep(0.3)
         
-    def execute_path(self, start, target):
+def execute_path(self, start, target):
         global current_progress 
         l,r=0.04,-0.01
         paths = {
@@ -211,7 +211,7 @@ class OdomRobot:
     (1, 11):[("rotate", -90), ("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, l),("rotate", -90),("move", 1.0)],
     
     (2, 1): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.2, l), ("move", 5.0, 0.01), ("move", 5.0, 0.01), ("rotate", -90), ("move", 6.5, 0.01), ("rotate", -90)],
-    (2, 3): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 6.0),("move", 6.5),("rotate", 90),("move", 1.0)],
+    (2, 3): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0, l),("move", 5.0, 0.01),("move", 2.5, 0.01),("rotate", 90),("move", 1.0)],
     (2, 4): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0, l),("move", 7.0, 0.01),("move", 7.0, 0.01),("rotate", -90),("move", 4.0),("rotate", 90),("move", 5.6),("rotate", 90),("move", 1.0)],
     (2, 5): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0, l),("move", 7.0, 0.01),("move", 7.0, 0.01),("rotate", -90),("move", 4.0),("rotate", 90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 1.0)],
     (2, 6): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 7.0, l),("move", 7.0, 0.01),("move", 7.0, 0.01),("rotate", -90),("move", 4.0),("rotate", 90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", -90),("move",1.0)],
@@ -279,46 +279,46 @@ class OdomRobot:
     (8, 1): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0, l), ("move", 5.0, l), ("move", 5.0, l), ("move", 5.0, 0.01), ("move", 5.0), ("move", 4.0, 0.01),("rotate", 90),("move", 5.0), ("move", 5.0, 0.03), ("move", 5.0, 0.01), ("move", 5.0, 0.01),("rotate", -90)],
     (8, 2): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0),("move", 3.0),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", -90),("move", 8.0),("move", 8.0),("move", 5.6),("rotate", -90),("move", 1.0)],
     (8, 3): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0),("move", 3.0),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", -90),("move", 5.0),("move", 4.6),("rotate", -90),("move", 1.0)],
-    (8, 4): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", 90),("move", 1.0)],
-    (8, 5): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 1.0)],
-    (8, 6): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", -90),("move", 1.0)],
-    (8, 7): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6, -0.01),("rotate", -90),("move", 1.0)],
-    (8, 9): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("move", 3.0),("rotate", 90),("move", 1.0)],
-    (8, 10):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 6.0),("move", 6.0),("move", 5.0),("rotate", 90),("move", 1.0)],
-    (8, 11):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("move", 5.0),("move", 5.0),("move", 5.0),("move", 4.0),("rotate", 90),("move", 1.0)],
+    (8, 4): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 4.0, l),("move", 4.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", 90),("move", 1.0)],
+    (8, 5): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 4.0, l),("move", 4.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 1.0)],
+    (8, 6): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 4.0, l),("move", 4.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", -90),("move", 1.0)],
+    (8, 7): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 4.0, l),("move", 4.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6, -0.01),("rotate", -90),("move", 1.0)],
+    (8, 9): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0, l),("move", 3.0, 0.01),("rotate", 90),("move", 1.0)],
+    (8, 10):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 6.0, l),("move", 6.0, 0.01),("move", 5.0, 0.01),("rotate", 90),("move", 1.0)],
+    (8, 11):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0, l),("move", 5.0, l),("move", 5.0, 0.01),("move", 5.0),("move", 4.0, 0.01),("rotate", 90),("move", 1.0)],
     
     (9, 1): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("move", 5.0),("move", 5.0),("rotate", 90),("move", 5.0, 0.03), ("move", 5.0, 0.01), ("move", 5.0, 0.01),("rotate", -90)],
-    (9, 2): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", -90),("move", 8.0),("move", 8.0),("move", 5.6),("rotate", -90),("move", 1.0)],
-    (9, 3): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", -90),("move", 5.0),("move", 4.6),("rotate", -90),("move", 1.0)],
-    (9, 4): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", 90),("move", 1.0)],
-    (9, 5): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 1.0)],
-    (9, 6): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", -90),("move", 1.0)],
-    (9, 7): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", -90),("move", 1.0)],
-    (9, 8): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0),("move", 3.0),("rotate", -90),("move", 1.0)],
-    (9, 10):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("move", 3.0),("rotate", 90),("move", 1.0)],
-    (9, 11):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("move", 5.0),("move", 5.0),("move", 1.0),("rotate", 90),("move", 1.0)],
+    (9, 2): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", -90),("move", 8.0, l),("move", 8.0, 0.01),("move", 5.6, 0.01),("rotate", -90),("move", 1.0)],
+    (9, 3): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", -90),("move", 5.0, l),("move", 4.6, 0.01),("rotate", -90),("move", 1.0)],
+    (9, 4): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", 90),("move", 1.0)],
+    (9, 5): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 1.0)],
+    (9, 6): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", -90),("move", 1.0)],
+    (9, 7): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", -90),("move", 1.0)],
+    (9, 8): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0, l),("move", 3.0, 0.01),("rotate", -90),("move", 1.0)],
+    (9, 10):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0, l),("move", 3.0, 0.01),("rotate", 90),("move", 1.0)],
+    (9, 11):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0, l),("move", 5.0, 0.01),("move", 5.0),("move", 1.0, 0.01),("rotate", 90),("move", 1.0)],
     
     (10, 1):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0, l), ("move", 5.0, 0.01),("rotate", 90),("move", 5.0, 0.03), ("move", 5.0, 0.01), ("move", 5.0, 0.01),("rotate", -90)],
-    (10, 2):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", -90),("move", 8.0),("move", 8.0),("move", 5.6),("rotate", -90),("move", 1.0)],
-    (10, 3):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", -90),("move", 5.0),("move", 4.6),("rotate", -90),("move", 1.0)],
-    (10, 4):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", 90),("move", 1.0)],
-    (10, 5):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 1.0)],
-    (10, 6):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", -90),("move", 1.0)],
-    (10, 7):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", -90),("move", 1.0)],
-    (10, 8):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 5.0),("move", 1.0),("rotate", -90),("move", 1.0)],
-    (10, 9):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0),("move", 3.0),("rotate", -90),("move", 1.0)],
-    (10, 11):[("rotate", 180),("move", 1.0),("rotate", 90),("move", 5.0),("move", 3.0),("rotate", 90),("move", 1.0)],
+    (10, 2):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("move", 8.0, 0.01),("move", 8.0, 0.01),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", -90),("move", 8.0),("move", 8.0),("move", 5.6),("rotate", -90),("move", 1.0)],
+    (10, 3):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("move", 8.0, 0.01),("move", 8.0, 0.01),("rotate", 90),("move", 4.2),("move", 4.2),("rotate", -90),("move", 5.0),("move", 4.6),("rotate", -90),("move", 1.0)],
+    (10, 4):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("move", 8.0, 0.01),("move", 8.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", 90),("move", 1.0)],
+    (10, 5):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("move", 8.0, 0.01),("move", 8.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 1.0)],
+    (10, 6):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("move", 8.0, 0.01),("move", 8.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", -90),("move", 1.0)],
+    (10, 7):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("move", 8.0, 0.01),("move", 8.0, 0.01),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", -90),("move", 1.0)],
+    (10, 8):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0, l),("move", 5.0, l),("move", 5.0, 0.01),("move", 1.0, 0.01),("rotate", -90),("move", 1.0)],
+    (10, 9):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0, l),("move", 3.0, 0.01),("rotate", -90),("move", 1.0)],
+    (10, 11):[("rotate", 180),("move", 1.0),("rotate", 90),("move", 5.0, l),("move", 3.0, 0.01),("rotate", 90),("move", 1.0)],
     
     (11, 1):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0, l),("rotate", -90),("move", 5.0, 0.03),("move", 5.0, 0.01),("move", 5.0, 0.01),("rotatr", -90)],
     (11, 2):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("rotate", -90),("move", 5.0),("move", 4.2),("rotate", -90),("move", 5.0, l),("move", 5.0, l),("move", 5.2, 0.01),("rotate", 90),("move", 1.0)],
     (11, 3):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 5.0),("rotate", -90),("move", 4.4),("move", 4.4),("rotate", -90),("move", 8.0, l),("move", 8.0, l),("move",8.0, 0.01),("move", 3.2, 0.01),("rotate", 90),("move", 1.0)],
-    (11, 4):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0,),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", 90),("move", 1.0)],
-    (11, 5):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 1.0)],
-    (11, 6):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", -90),("move", 1.0)],
-    (11, 7):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0),("move", 8.0),("move", 8.0),("move", 8.0),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", -90),("move", 1.0)],
-    (11, 8):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 5.0),("move", 5.0),("move", 4.0),("rotate", -90),("move", 1.0)],
-    (11, 9):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0),("move", 5.0),("move", 6.0),("rotate", -90),("move", 1.0)],
-    (11, 10):[("rotate", 180),("move", 1.0),("rotate", -90),("move", 5.0),("move", 3),("rotate", -90),("move", 1.0)]} 
+    (11, 4):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("move", 8.0, l),("move", 8.0, 0.01),("move", 8.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", 90),("move", 1.0)],
+    (11, 5):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("move", 8.0, l),("move", 8.0, 0.01),("move", 8.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", 90),("move", 1.0)],
+    (11, 6):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("move", 8.0, l),("move", 8.0, 0.01),("move", 8.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 6.0, l),("move", 6.0, 0.01),("move", 4.0, 0.01),("rotate", -90),("move", 1.0)],
+    (11, 7):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("move", 8.0, l),("move", 8.0, 0.01),("move", 8.0, 0.01),("rotate", 90),("move", 4.0),("rotate", -90),("move", 5.6),("rotate", -90),("move", 1.0)],
+    (11, 8):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0, l),("move", 5.0, l),("move", 5.0, 0.01),("move", 5.0),("move", 4.0, 0.01),("rotate", -90),("move", 1.0)],
+    (11, 9):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 5.0, l),("move", 5.0, 0.01),("move", 6.0, 0.01),("rotate", -90),("move", 1.0)],
+    (11, 10):[("rotate", 180),("move", 1.0),("rotate", -90),("move", 5.0, l),("move", 3.0, 0.01),("rotate", -90),("move", 1.0)]} 
         
         
         key = (start, target)
