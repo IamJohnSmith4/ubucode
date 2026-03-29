@@ -205,7 +205,7 @@ class OdomRobot:
     (1, 5): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, h),("move", 10.0, r),("move", 7.2, r),("rotate", -90),("move", 4.2, r),("rotate", 90),("move", 10.0, l),("move", 6.0, r),("rotate", 90),("move", 1.0)],
     (1, 6): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, h),("move", 10.0, r),("move", 7.2, r),("rotate", -90),("move", 4.2, r),("rotate", 90),("move", 10.0, l),("move", 6.0, r),("rotate", -90),("move", 1.0)],
     (1, 7): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, h),("move", 10.0, r),("move", 7.2, r),("rotate", -90),("move", 4.2, r),("rotate", 90),("move", 5.6),("rotate", -90),("move", 1.0)],
-    (1, 8): [("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 10.0, l),("move", 10.0, r),("move", 9.0, r),("rotate", -90),("move", 1.0)],	
+    (1, 8): [("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 10.0, r),("move", 10.0, r),("move", 9.0, r),("rotate", -90),("move", 1.0)],	
     (1, 9): [("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 10.0, l),("move", 10.0, r),("move", 1.8, r),("rotate", -90),("move", 1.0)],
     (1, 10):[("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 10.0, r),("rotate", -90),("move", 1.0)],
     (1, 11):[("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 5.0, r),("rotate", -90),("move", 1.0)],
