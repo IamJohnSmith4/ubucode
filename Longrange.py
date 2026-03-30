@@ -197,7 +197,7 @@ class OdomRobot:
         
     def execute_path(self, start, target):
         global current_progress 
-        l,h,r=0.04,0.02,0.01
+        l,h,r,z=0.04,0.02,0.01,0.00
         paths = {
     (1, 2): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 5.2, r),("rotate", 90),("move", 1.0)],
     (1, 3): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, r),("move", 7.2, r),("rotate", 90),("move", 1.0)],
@@ -205,10 +205,10 @@ class OdomRobot:
     (1, 5): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, h),("move", 10.0, r),("move", 7.2, r),("rotate", -90),("move", 4.2, r),("rotate", 90),("move", 10.0, l),("move", 6.0, r),("rotate", 90),("move", 1.0)],
     (1, 6): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, h),("move", 10.0, r),("move", 7.2, r),("rotate", -90),("move", 4.2, r),("rotate", 90),("move", 10.0, l),("move", 6.0, r),("rotate", -90),("move", 1.0)],
     (1, 7): [("rotate", -90), ("move", 6.5),("rotate", 90),("move", 10.0, l),("move", 10.0, h),("move", 10.0, r),("move", 7.2, r),("rotate", -90),("move", 4.2, r),("rotate", 90),("move", 5.6),("rotate", -90),("move", 1.0)],
-    (1, 8): [("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 10.0, r),("move", 10.0, r),("move", 9.0, r),("rotate", -90),("move", 1.0)],	
-    (1, 9): [("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 10.0, l),("move", 10.0, r),("move", 1.8, r),("rotate", -90),("move", 1.0)],
+    (1, 8): [("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 10.0, r),("move", 10.0, z),("move", 9.0, r),("rotate", -90),("move", 1.0)],	
+    (1, 9): [("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 10.0, r),("move", 10.0, z),("move", 1.8, r),("rotate", -90),("move", 1.0)],
     (1, 10):[("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 10.0, r),("rotate", -90),("move", 1.0)],
-    (1, 11):[("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 5.0, r),("rotate", -90),("move", 1.0)],
+    (1, 11):[("rotate", -90), ("move", 10.0),("move", 5.0),("rotate", 90),("move", 5.0),("rotate", -90),("move", 1.0)],
     
     (2, 1): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 10.0, l),("move", 5.2, r), ("rotate", -90), ("move", 6.5), ("rotate", -90)],
     (2, 3): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 10.0, l),("move", 2.5, r),("rotate", 90),("move", 1.0)],
@@ -283,20 +283,20 @@ class OdomRobot:
     (8, 5): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, r),("rotate", 90),("move", 4.0, r),("rotate", -90),("move", 10.0, l),("move", 6.0, r),("rotate", 90),("move", 1.0)],
     (8, 6): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, r),("rotate", 90),("move", 4.0, r),("rotate", -90),("move", 10.0, l),("move", 6.0, r),("move", 4.0, r),("rotate", -90),("move", 1.0)],
     (8, 7): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, r),("rotate", 90),("move", 4.0, r),("rotate", -90),("move", 5.6, r),("rotate", -90),("move", 1.0)],
-    (8, 9): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 8.0, r),("rotate", 90),("move", 1.0)],
-    (8, 10):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 10.0, l),("move", 7.0, r),("rotate", 90),("move", 1.0)],
-    (8, 11):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 10.0, l),("move", 10.0, r),("move", 4.0, r),("rotate", 90),("move", 1.0)],
+    (8, 9): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 8.0),("rotate", 90),("move", 1.0)],
+    (8, 10):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 10.0, r),("move", 7.0, r),("rotate", 90),("move", 1.0)],
+    (8, 11):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 10.0, r),("move", 10.0, z),("move", 4.0, r),("rotate", 90),("move", 1.0)],
     
-    (9, 1): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 10.0, l),("move", 5.0, r),("rotate", -90),("move", 10.0, l),("move", 5.0, r),("rotate", -90)],
+    (9, 1): [("rotate", 180), ("move", 1.0),("rotate", 90),("move", 10.0, r),("move", 5.0, r),("rotate", -90),("move", 10.0, l),("move", 5.0, r),("rotate", -90)],
     (9, 2): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 10.0, l),("move", 10.0, r),("rotate", 90),("move", 4.2, l),("move", 4.2, r),("rotate", -90),("move", 10.0, l),("move", 10.0, r),("move", 1.6, r),("rotate", -90),("move", 1.0)],
     (9, 3): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 10.0, l),("move", 10.0, r),("rotate", 90),("move", 4.2, l),("move", 4.2, r),("rotate", -90),("move", 9.6, r),("rotate", -90),("move", 1.0)],
     (9, 4): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 10.0, l),("move", 10.0, r),("rotate", 90),("move", 4.0, r),("rotate", -90),("move", 5.6),("rotate", 90),("move", 1.0)],
     (9, 5): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 10.0, l),("move", 10.0, r),("rotate", 90),("move", 4.0, r),("rotate", -90),("move", 10.0, l),("move", 6.0, r),("rotate", 90),("move", 1.0)],
     (9, 6): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 10.0, l),("move", 10.0, r),("rotate", 90),("move", 4.0, r),("rotate", -90),("move", 10.0, l),("move", 6.0, r),("rotate", -90),("move", 1.0)],
     (9, 7): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 10.0, l),("move", 10.0, r),("rotate", 90),("move", 4.0, r),("rotate", -90),("move", 5.6),("rotate", -90),("move", 1.0)],
-    (9, 8): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, l),("rotate", -90),("move", 1.0)],
-    (9, 10):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 8.0, l),("rotate", 90),("move", 1.0)],
-    (9, 11):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 10.0, l),("move", 6.0, r),("rotate", 90),("move", 1.0)],
+    (9, 8): [("rotate", 180), ("move", 1.0),("rotate", -90),("move", 8.0, r),("rotate", -90),("move", 1.0)],
+    (9, 10):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 8.0, r),("rotate", 90),("move", 1.0)],
+    (9, 11):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 10.0, r),("move", 6.0, r),("rotate", 90),("move", 1.0)],
     
     (10, 1):[("rotate", 180), ("move", 1.0),("rotate", 90),("move", 10.0, r),("rotate", -90),("move", 10.0, l),("move", 5.0, r),("rotate", -90)],
     (10, 2):[("rotate", 180), ("move", 1.0),("rotate", -90),("move", 10.0, l),("move", 10.0, r),("move", 4.0, r),("rotate", 90),("move", 9.4),("rotate", -90),("move", 10.0, l),("move", 10.0, r),("move", 1.6, r),("rotate", -90),("move", 1.0)],
