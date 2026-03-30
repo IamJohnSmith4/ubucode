@@ -155,12 +155,9 @@ class OdomRobot:
             if traveled >= distance: break
             
             if remaining_dist > decel_dist:
-                if current_linear_speed < LINEAR_SPEED:
-                	current_linear_speed += accel
-                else:
-                	current_linear_speed = LINEAR_SPEED
-            else:
-            	current_linear_speed = max(min_speed,(remaining_dist/decel_dist)*LINEAR_SPEED)
+                if current_linear_speed < LINEAR_SPEED:current_linear_speed += accel
+                else:current_linear_speed = LINEAR_SPEED
+            else:current_linear_speed = max(min_speed,(remaining_dist/decel_dist)*LINEAR_SPEED)
                 
             
             error_yaw = math.atan2(math.sin(target_yaw - self.yaw), math.cos(target_yaw - self.yaw))
