@@ -1,40 +1,39 @@
 #!/usr/bin/env python3
 import rospy
-from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry # ต้องเพิ่มส่วนนี้
-from tf.transformations import euler_from_quaternion # สำหรับแปลงมุม
 import math
+import csv
+import time
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
+from tf.transformations import euler_from_quaternion
 
-class OdomTest:
+class OdomCSVTest:
     def __init__(self):
         self.x = 0.0
         self.y = 0.0
         self.yaw = 0.0
         
-        # --- จุดสำคัญ: ต้องมี Subscriber เพื่อดึงค่าตำแหน่งปัจจุบัน ---
-        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
+        # ตั้งชื่อไฟล์ CSV ตามเวลาที่รัน
+        self.filename = f"robot_test_{int(time.time())}.csv"
         
+        # Subscriber รับค่าจาก /odom
+        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
         self.velocity_publisher = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size=10)
         
-        # รอให้ระบบเชื่อมต่อกับ Odom ได้ก่อนเริ่ม
         rospy.loginfo("Waiting for odom data...")
         rospy.wait_for_message('/odom', Odometry)
         
         self.velocity_publisher.publish(Twist())
         rospy.sleep(1)
 
-    # ฟังก์ชันรับค่าจาก Robot
     def odom_callback(self, msg):
         self.x = msg.pose.pose.position.x
         self.y = msg.pose.pose.position.y
-        
-        # แปลง Quaternion เป็น Euler (มุม Yaw)
         orientation_q = msg.pose.pose.orientation
         quaternion = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
-        (roll, pitch, self.yaw) = euler_from_quaternion(quaternion)
+        (_, _, self.yaw) = euler_from_quaternion(quaternion)
 
     def move_forward_test(self, target_distance):
-        # บันทึกจุดเริ่มต้น
         start_x = self.x
         start_y = self.y
         rate = rospy.Rate(20)
@@ -43,45 +42,57 @@ class OdomTest:
         max_speed = 0.25
         accel = 0.008
         
-        rospy.loginfo(f"Start Position: x={start_x:.3f}, y={start_y:.3f}")
-        print(f"--- Starting Linear Test: Target {target_distance} m ---")
-        
-        while not rospy.is_shutdown():
-            # คำนวณระยะที่เดินมาแล้วจากจุดเริ่ม
-            distance_moved = math.sqrt((self.x - start_x)**2 + (self.y - start_y)**2)
-            remaining_dist = target_distance - distance_moved
+        # เตรียมไฟล์ CSV
+        with open(self.filename, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            # เขียน Header ของไฟล์
+            writer.writerow(['Time_Sec', 'Odom_X', 'Odom_Y', 'Distance_Moved', 'Error'])
             
-            # เงื่อนไขการหยุด
-            if remaining_dist <= 0.01: 
-                break
+            start_time = rospy.get_time()
+            rospy.loginfo(f"Saving data to {self.filename}")
+            print(f"--- Starting Linear Test: Target {target_distance} m ---")
             
-            # Speed Ramping
-            if remaining_dist > 0.4:
-                if current_speed < max_speed:
-                    current_speed += accel
-            else:
-                current_speed = max_speed * (remaining_dist / 0.4)
-                if current_speed < 0.05: current_speed = 0.05
-            
-            twist = Twist()
-            twist.linear.x = current_speed
-            twist.angular.z = 0.0 
-            self.velocity_publisher.publish(twist)
-            
-            # ถ้าค่า self.x ขยับ ตัวเลขนี้จะเปลี่ยน
-            print(f"Dist: {distance_moved:.3f} m | Current Odom X: {self.x:.3f}")
-            
-            rate.sleep()
+            while not rospy.is_shutdown():
+                # คำนวณระยะทางและ Error
+                distance_moved = math.sqrt((self.x - start_x)**2 + (self.y - start_y)**2)
+                error = target_distance - distance_moved # e(t)
+                
+                # บันทึกข้อมูลลง CSV
+                current_time = rospy.get_time() - start_time
+                writer.writerow([round(current_time, 2), round(self.x, 4), round(self.y, 4), round(distance_moved, 4), round(error, 4)])
+                
+                # เงื่อนไขการหยุด
+                if error <= 0.01: 
+                    break
+                
+                # Speed Ramping (เร่ง-เบรก)
+                if error > 0.4:
+                    if current_speed < max_speed:
+                        current_speed += accel
+                else:
+                    current_speed = max_speed * (error / 0.4)
+                    if current_speed < 0.05: current_speed = 0.05
+                
+                twist = Twist()
+                twist.linear.x = current_speed
+                self.velocity_publisher.publish(twist)
+                
+                print(f"Dist: {distance_moved:.3f} m | Error: {error:.3f} m")
+                rate.sleep()
 
         # หยุดหุ่นยนต์
         self.velocity_publisher.publish(Twist())
-        print(f"--- Finished! Final Odom X: {self.x:.3f} ---")
-        print(f"Total Distance by Odom: {distance_moved:.3f} m")
+        final_error = target_distance - math.sqrt((self.x - start_x)**2 + (self.y - start_y)**2)
+        
+        print(f"--- Test Finished ---")
+        print(f"Final Odom Distance: {target_distance - final_error:.4f} m")
+        print(f"Final Error: {final_error:.4f} m")
+        rospy.loginfo(f"Log saved to {self.filename}")
 
 if __name__ == "__main__":
     try:
-        rospy.init_node('odom_linear_test_node')
-        tester = OdomTest()
-        tester.move_forward_test(5.0) # ทดสอบ 5 เมตร
+        rospy.init_node('odom_csv_test_node')
+        tester = OdomCSVTest()
+        tester.move_forward_test(5.0) 
     except rospy.ROSInterruptException:
         pass

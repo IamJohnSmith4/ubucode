@@ -4,7 +4,7 @@ import math
 import signal
 import sys
 import threading
-import json, os
+import json, oscd 
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
@@ -324,6 +324,7 @@ class OdomRobot:
            
             total_steps = len(paths[key])
             current_steps = 0
+            current_progress = 0
             
             for cmd in paths[key]:
                 if not is_navigating: break # หยุดถ้ามีการสั่ง Stop ผ่าน API
@@ -349,6 +350,7 @@ class OdomRobot:
                     self.rotate(math.radians(angle))
                     rospy.sleep(0.5)
             self.pub.publish(Twist())
+            
             return True
         return False
 # ==================================================
