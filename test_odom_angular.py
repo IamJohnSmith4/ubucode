@@ -29,70 +29,47 @@ class OdomRotateTest:
         quaternion = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
         (roll, pitch, self.yaw) = euler_from_quaternion(quaternion)
 
-    def play_system_sound(self):
-        """ฟังก์ชันสำหรับเล่นเสียงระบบ Ubuntu (เสียง Login)"""
-        # Path มาตรฐานของเสียงระบบใน Ubuntu
-        sound_file = "/usr/share/sounds/ubuntu/stereo/service-login.oga"
+    def rotate(self, angle_rad):
+        # 1. คำนวณหาเป้าหมาย (ใช้ atan2 เพื่อจัดการช่วงมุม -pi ถึง pi ให้ถูกต้อง)
+        target_yaw = math.atan2(math.sin(self.yaw + angle_rad), math.cos(self.yaw + angle_rad))
+        rate = rospy.Rate(30)
         
-        if os.path.exists(sound_file):
-            rospy.loginfo("--- Target Reached: Playing System Sound ---")
-            # ใช้ paplay ในการเล่นไฟล์เสียง .oga
-            os.system(f"paplay {sound_file}")
-        else:
-            rospy.logwarn("System sound file not found! Please check the path.")
-
-    def rotate_test(self, target_deg):
-        # 1. เตรียมตัวแปร
-        target_rad = math.radians(target_deg)
-        accumulated_yaw = 0.0        # มุมสะสมรวม (เรเดียน)
-        last_yaw = self.yaw          # บันทึกค่ามุมครั้งล่าสุด
+        # ตั้งค่าพารามิเตอร์สำหรับการควบคุมความเร็ว
+        max_ang_vel = 0.5    # ความเร็วสูงสุดที่ต้องการ (rad/s)
+        min_ang_vel = 0.1    # ความเร็วขั้นต่ำเพื่อให้หุ่นไม่หยุดนิ่งก่อนถึงเป้าหมาย
+        ramp_threshold = 0.2  # ระยะห่างจากเป้าหมาย (เรเดียน) ที่จะเริ่มลดความเร็ว
         
-        rate = rospy.Rate(20)
-        rospy.loginfo(f"--- Starting Pure Odom Rotation: {target_deg} deg ---")
-        
-        while not rospy.is_shutdown():
-            # 2. คำนวณส่วนต่างของมุม (Delta Yaw)
-            current_yaw = self.yaw
-            delta_yaw = current_yaw - last_yaw
+        # สมมติว่า is_navigating คือตัวแปรสถานะในคลาสของคุณ
+        while not rospy.is_shutdown() and self.is_navigating:
+            # 2. คำนวณส่วนต่าง (Error) โดยใช้ atan2 เพื่อหาทางที่สั้นที่สุดเสมอ
+            error = math.atan2(math.sin(target_yaw - self.yaw), math.cos(target_yaw - self.yaw))
             
-            # 3. จัดการเรื่องมุมพลิก (Angle Wrap-around) 
-            # ถ้า delta กระโดดเกิน pi แสดงว่ามุมพลิกจาก 180 ไป -180 หรือในทางกลับกัน
-            if delta_yaw > math.pi:
-                delta_yaw -= 2 * math.pi
-            elif delta_yaw < -math.pi:
-                delta_yaw += 2 * math.pi
-            
-            # 4. สะสมมุมที่หมุนไป
-            accumulated_yaw += delta_yaw
-            last_yaw = current_yaw
-            
-            # 5. คำนวณระยะที่เหลือ (ใช้ค่า Absolute เพื่อให้หมุนได้ทั้งซ้าย/ขวา)
-            remaining_rad = abs(target_rad) - abs(accumulated_yaw)
-            
-            # จุดหยุด (Tolerance 0.01 rad ประมาณ 0.5 องศา)
-            if remaining_rad <= 0.01:
+            # 3. จุดหยุด (Tolerance) ประมาณ 0.3 องศา
+            if abs(error) < 0.005: 
                 break
-                
-            # 6. ควบคุมความเร็ว (Ramping)
-            twist = Twist()
-            speed_dir = 0.3 if target_deg > 0 else -0.3
             
-            if remaining_rad < 0.2: # ช่วงผ่อนความเร็ว
-                twist.angular.z = speed_dir * (remaining_rad / 0.2)
-                if abs(twist.angular.z) < 0.1: # ความเร็วขั้นต่ำ
-                    twist.angular.z = 0.1 if speed_dir > 0 else -0.1
+            # 4. คำนวณความเร็วแบบ Mini-Ramping (แทนการใช้ PID)
+            direction = 1 if error > 0 else -1
+            
+            if abs(error) < ramp_threshold:
+                # ช่วงผ่อนความเร็ว: ลดความเร็วลงตามสัดส่วนของระยะที่เหลือ
+                speed = max_ang_vel * (abs(error) / ramp_threshold)
+                # คุมไม่ให้ความเร็วต่ำเกินไปจนหุ่นนิ่ง (Dead zone)
+                speed = max(speed, min_ang_vel)
             else:
-                twist.angular.z = speed_dir
-                
-            self.velocity_publisher.publish(twist)
-            
-            print(f"Accumulated: {math.degrees(accumulated_yaw):.2f} / {target_deg} deg", end='\r')
-            rate.sleep()
+                # ช่วงความเร็วคงที่
+                speed = max_ang_vel
 
-        # หยุดหุ่นและเล่นเสียง
-        self.velocity_publisher.publish(Twist())
-        self.play_system_sound()
-        print(f"\n Finished! Measured: {math.degrees(accumulated_yaw):.2f} deg")
+            twist = Twist()
+            twist.angular.z = speed * direction
+            self.pub.publish(twist)
+            
+            print(f"Current Yaw: {self.yaw:.3f} | Error: {error:.3f}", end='\r')
+            rate.sleep()
+            
+        # 5. สั่งหยุดหุ่นยนต์ให้สนิท
+        self.pub.publish(Twist())
+        rospy.sleep(0.3)
 
 if __name__ == "__main__":
     try:
