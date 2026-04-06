@@ -5,59 +5,60 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
 
-class SimpleRotate:
+class SimpleRotate90:
     def __init__(self):
-        self.yaw = 0.0
-        # รับค่าจาก /odom
-        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
-        # ส่งความเร็วไปที่หุ่น (เปลี่ยน topic ตามรุ่นหุ่นของคุณ เช่น /cmd_vel)
+        self.current_yaw = 0.0
+        rospy.init_node('rotate_90_test_node')
+        
+        # Publisher สำหรับสั่งความเร็ว (ใช้ Topic มาตรฐานของ TurtleBot2/Kobuki)
         self.pub = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size=10)
         
-        rospy.loginfo("Waiting for odom...")
+        # Subscriber รับค่า Odometry
+        self.sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
+        
+        rospy.loginfo("รอดึงค่าจาก /odom...")
         rospy.wait_for_message('/odom', Odometry)
 
     def odom_callback(self, msg):
-        # แปลง Quaternion เป็น Yaw
+        # แปลง Quaternion เป็น Yaw (หน่วยเรเดียน)
         orientation_q = msg.pose.pose.orientation
         quaternion = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
-        (_, _, self.yaw) = euler_from_quaternion(quaternion)
-
-    def rotate_90_test(self):
-        rate = rospy.Rate(20)
-        start_yaw = self.yaw
-        # 90 องศา = 1.5708 เรเดียน
-        target_rad = 1.5708 
+        (_, _, yaw_rad) = euler_from_quaternion(quaternion)
         
-        rospy.loginfo("Start Rotating 90 degrees...")
+        # แปลงเป็นองศาเพื่อให้ดูง่ายตอนบันทึกผล
+        self.current_yaw = math.degrees(yaw_rad)
+
+    def execute(self):
+        rate = rospy.Rate(20)
+        
+        # 1. บันทึกมุมเริ่มต้น และตั้งเป้าหมาย (+ 90 องศา)
+        start_yaw = self.current_yaw
+        target_yaw = start_yaw + 90.0
+        
+        rospy.loginfo(f"เริ่มหมุนจาก: {start_yaw:.2f} -> เป้าหมาย: {target_yaw:.2f}")
 
         while not rospy.is_shutdown():
-            # คำนวณระยะที่หมุนไปแล้ว (ใช้ abs เพื่อให้รองรับทั้งซ้ายและขวา)
-            rotated_rad = abs(self.yaw - start_yaw)
-            
-            # จัดการกรณีมุมพลิกข้ามช่วง -pi ไป pi
-            if rotated_rad > math.pi:
-                rotated_rad = abs(rotated_rad - 2 * math.pi)
-
-            # เงื่อนไขหยุด: ถ้าหมุนไปจนถึงหรือเกิน 90 องศาตามที่ Odom บอก
-            if rotated_rad >= target_rad:
+            # 2. เช็คเงื่อนไขหยุด: ถ้า Yaw ปัจจุบัน >= เป้าหมาย ให้หยุดทันที
+            # (ตามที่คุณต้องการเพื่อวัด Error จริงอีกรอบ)
+            if self.current_yaw >= target_yaw:
                 break
-
-            # สั่งหมุนด้วยความเร็วคงที่ (เช่น 0.2 rad/s)
+            
+            # 3. สั่งหมุนด้วยความเร็วคงที่ (ใช้ความเร็วต่ำ 0.2 เพื่อให้หยุดได้แม่นยำ)
             twist = Twist()
             twist.angular.z = 0.2 
             self.pub.publish(twist)
             
-            print(f"Current Rotated: {math.degrees(rotated_rad):.2f} / 90.00 deg", end='\r')
+            print(f"Yaw ปัจจุบัน: {self.current_yaw:.2f} / เป้าหมาย: {target_yaw:.2f}", end='\r')
             rate.sleep()
 
-        # หยุดหุ่นทันทีเพื่อวัดผลจริง
+        # 4. สั่งหยุดหุ่นยนต์
         self.pub.publish(Twist())
-        rospy.loginfo(f"Finished! Odom reported: {math.degrees(rotated_rad):.2f} deg")
+        rospy.loginfo(f"หยุดแล้ว! ค่าที่ Odom รายงาน: {self.current_yaw:.2f} deg")
+        print("\n--- บันทึกค่า Odom นี้ลงตาราง และวัดมุมจริงที่ตัวหุ่นได้เลยครับ ---")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
-        rospy.init_node('simple_rotate_test')
-        tester = SimpleRotate()
-        tester.rotate_90_test()
+        tester = SimpleRotate90()
+        tester.execute()
     except rospy.ROSInterruptException:
         pass
