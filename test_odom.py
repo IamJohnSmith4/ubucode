@@ -39,27 +39,47 @@ class OdomTest:
         (roll, pitch, self.yaw) = euler_from_quaternion(quaternion)
 
     def move_to_odom_x(self, stop_at_x):
-        """ สั่งให้หุ่นวิ่งไปจนกว่าค่า odom.x จะถึงค่าที่กำหนด """
+        """ สั่งให้หุ่นวิ่งแบบ Smooth: เริ่มช้า -> เร็ว -> ช้าก่อนหยุด """
         rate = rospy.Rate(20)
-        rospy.loginfo(f"Moving until Odom X reaches: {stop_at_x} m")
-        
+        rospy.loginfo(f"Moving Smoothly to Odom X: {stop_at_x} m")
+
+        # --- ตั้งค่าความเร็ว ---
+        max_speed = 0.4      # ความเร็วสูงสุดกลางทาง
+        min_speed = 0.05     # ความเร็วต่ำสุด (ป้องกันหุ่นอืดจนไม่เดิน)
+        ramp_dist = 0.5      # ระยะทางที่ใช้ในการเร่ง/ผ่อน (เมตร)
+
         while not rospy.is_shutdown():
-            # เช็คค่า x จาก odom โดยตรง
-            if self.x >= stop_at_x:
+            current_x = self.x
+            dist_to_go = stop_at_x - current_x
+
+            # 1. เงื่อนไขหยุดเมื่อถึงระยะ
+            if dist_to_go <= 0:
                 break
+
+            # 2. คำนวณความเร็ว (Velocity Scaling)
+            # ช่วงเร่งออกตัว (Acceleration)
+            accel_speed = (current_x / ramp_dist) * max_speed
             
+            # ช่วงผ่อนความเร็วเมื่อใกล้ถึง (Deceleration)
+            decel_speed = (dist_to_go / ramp_dist) * max_speed
+
+            # เลือกความเร็วที่เหมาะสม (ใช้ค่าที่น้อยที่สุดระหว่างช่วงเร่ง/คงที่/ผ่อน)
+            speed = min(max_speed, accel_speed, decel_speed)
+            
+            # คุมไม่ให้ต่ำกว่าความเร็วขั้นต่ำที่ตั้งไว้
+            speed = max(speed, min_speed)
+
+            # 3. ส่งคำสั่งเคลื่อนที่
             twist = Twist()
-            # ใส่ความเร็วคงที่ หรือจะใส่ PID ตรงนี้ก็ได้
-            twist.linear.x = 0.2 
+            twist.linear.x = speed
             self.velocity_publisher.publish(twist)
-            
-            # พิมพ์ค่าปัจจุบันให้ดู
-            print(f"Current Odom X: {self.x:.3f}", end='\r')
+
+            print(f"Dist to go: {dist_to_go:.3f} | Current Speed: {speed:.3f}", end='\r')
             rate.sleep()
 
-        # หยุดหุ่น
+        # หยุดหุ่นเมื่อถึงจุดหมาย
         self.velocity_publisher.publish(Twist())
-        print(f"\n--- Stopped at Odom X: {self.x:.3f} ---")
+        print(f"\n Arrived at Odom X: {self.x:.3f}")
 
 if __name__ == "__main__":
     try:
