@@ -56,9 +56,15 @@ class RobotLogger:
         for _ in range(10):
             self.reset_odom_pub.publish(Empty())
             rospy.sleep(0.1)
+            
+        reset_timeout = rospy.get_time() + 3.0 
+        rospy.loginfo("รอการยืนยันค่าศูนย์จากระบบ...")
         
         # รอจนกว่าค่า x และ y จะใกล้ศูนย์จริงๆ
-        while abs(self.x) > 0.01 or abs(self.y) > 0.01:
+        while abs(self.x) > 0.05 or abs(self.y) > 0.05:
+            if rospy.get_time() > reset_timeout:
+                rospy.logwarn("Timeout: ระบบ Odom ไม่เป็นศูนย์ในเวลาที่กำหนด จะเริ่มเคลื่อนที่ต่อโดยใช้ค่าปัจจุบัน")
+                break
             rospy.sleep(0.1)
         
         start_x, start_y = self.x, self.y
