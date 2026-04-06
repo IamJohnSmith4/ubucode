@@ -42,55 +42,57 @@ class OdomRotateTest:
             rospy.logwarn("System sound file not found! Please check the path.")
 
     def rotate_test(self, target_deg):
-        # แปลงองศาเป็นเรเดียน
+        # 1. เตรียมตัวแปร
         target_rad = math.radians(target_deg)
-        start_yaw = self.yaw
-        rotated_rad = 0.0
+        accumulated_yaw = 0.0        # มุมสะสมรวม (เรเดียน)
+        last_yaw = self.yaw          # บันทึกค่ามุมครั้งล่าสุด
         
         rate = rospy.Rate(20)
-        print(f"--- Starting Angular Test: Target {target_deg} Degrees ---")
+        rospy.loginfo(f"--- Starting Pure Odom Rotation: {target_deg} deg ---")
         
         while not rospy.is_shutdown():
-            # คำนวณมุมที่หมุนไปแล้ว (จัดการเรื่องมุม -pi ถึง pi)
-            diff = self.yaw - start_yaw
+            # 2. คำนวณส่วนต่างของมุม (Delta Yaw)
+            current_yaw = self.yaw
+            delta_yaw = current_yaw - last_yaw
             
-            # Normalize angle เพื่อให้ได้ค่าความต่างที่ถูกต้อง
-            if diff > math.pi: diff -= 2*math.pi
-            if diff < -math.pi: diff += 2*math.pi
+            # 3. จัดการเรื่องมุมพลิก (Angle Wrap-around) 
+            # ถ้า delta กระโดดเกิน pi แสดงว่ามุมพลิกจาก 180 ไป -180 หรือในทางกลับกัน
+            if delta_yaw > math.pi:
+                delta_yaw -= 2 * math.pi
+            elif delta_yaw < -math.pi:
+                delta_yaw += 2 * math.pi
             
-            rotated_rad = abs(diff)
-            remaining_rad = abs(target_rad) - rotated_rad
+            # 4. สะสมมุมที่หมุนไป
+            accumulated_yaw += delta_yaw
+            last_yaw = current_yaw
             
-            # จุดหยุด (Tolerance ประมาณ 0.5 องศา)
-            if remaining_rad <= 0.01: 
+            # 5. คำนวณระยะที่เหลือ (ใช้ค่า Absolute เพื่อให้หมุนได้ทั้งซ้าย/ขวา)
+            remaining_rad = abs(target_rad) - abs(accumulated_yaw)
+            
+            # จุดหยุด (Tolerance 0.01 rad ประมาณ 0.5 องศา)
+            if remaining_rad <= 0.01:
                 break
-            
+                
+            # 6. ควบคุมความเร็ว (Ramping)
             twist = Twist()
-            # กำหนดทิศทาง: บวก=หมุนซ้าย(ทวนเข็ม), ลบ=หมุนขวา(ตามเข็ม)
-            speed = 0.3 if target_deg > 0 else -0.3
+            speed_dir = 0.3 if target_deg > 0 else -0.3
             
-            # ระบบลดความเร็วเมื่อใกล้ถึงเป้าหมาย (Mini-Ramping)
-            if remaining_rad < 0.2:
-                twist.angular.z = speed * (remaining_rad / 0.2)
-                # กำหนดความเร็วขั้นต่ำไม่ให้หุ่นหยุดนิ่งก่อนถึงเป้าหมาย
-                if abs(twist.angular.z) < 0.1: 
-                    twist.angular.z = 0.1 if speed > 0 else -0.1
+            if remaining_rad < 0.2: # ช่วงผ่อนความเร็ว
+                twist.angular.z = speed_dir * (remaining_rad / 0.2)
+                if abs(twist.angular.z) < 0.1: # ความเร็วขั้นต่ำ
+                    twist.angular.z = 0.1 if speed_dir > 0 else -0.1
             else:
-                twist.angular.z = speed
-
+                twist.angular.z = speed_dir
+                
             self.velocity_publisher.publish(twist)
             
-            print(f"Rotated: {math.degrees(rotated_rad):.2f} / {target_deg} deg")
+            print(f"Accumulated: {math.degrees(accumulated_yaw):.2f} / {target_deg} deg", end='\r')
             rate.sleep()
 
-        # --- ส่วนที่ทำงานหลังจากหมุนครบองศา ---
-        # 1. สั่งหยุดหุ่นยนต์ทันที
+        # หยุดหุ่นและเล่นเสียง
         self.velocity_publisher.publish(Twist())
-        
-        # 2. เล่นเสียงระบบแจ้งเตือน
         self.play_system_sound()
-        
-        print(f"--- Finished! Target: {target_deg} | Measured: {math.degrees(rotated_rad):.2f} deg ---")
+        print(f"\n Finished! Measured: {math.degrees(accumulated_yaw):.2f} deg")
 
 if __name__ == "__main__":
     try:
