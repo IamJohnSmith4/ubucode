@@ -4,7 +4,7 @@ import math
 import signal
 import sys
 import threading
-import json, oscd 
+import json, os
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
@@ -155,9 +155,12 @@ class OdomRobot:
             if traveled >= distance: break
             
             if remaining_dist > decel_dist:
-                if current_linear_speed < LINEAR_SPEED:current_linear_speed += accel
-                else:current_linear_speed = LINEAR_SPEED
-            else:current_linear_speed = max(min_speed,(remaining_dist/decel_dist)*LINEAR_SPEED)
+                if current_linear_speed < LINEAR_SPEED:
+                	current_linear_speed += accel
+                else:
+                	current_linear_speed = LINEAR_SPEED
+            else:
+            	current_linear_speed = max(min_speed,(remaining_dist/decel_dist)*LINEAR_SPEED)
                 
             
             error_yaw = math.atan2(math.sin(target_yaw - self.yaw), math.cos(target_yaw - self.yaw))
@@ -319,19 +322,18 @@ class OdomRobot:
         
         
         key = (start, target)
+        current_progress = 0	
         if key in paths:
             rospy.loginfo(f"Starting path from {start} to {target}")
            
             total_steps = len(paths[key])
             current_steps = 0
-            current_progress = 0
             
             for cmd in paths[key]:
                 if not is_navigating: break # หยุดถ้ามีการสั่ง Stop ผ่าน API
                 
                 current_steps += 1
-                current_progress = (current_steps / total_steps )*100
-                rospy.loginfo(f"progress = {current_progress:.2f}%")
+                
                 
                 action = cmd[0]
                 
@@ -349,8 +351,11 @@ class OdomRobot:
                     angle = cmd[1]
                     self.rotate(math.radians(angle))
                     rospy.sleep(0.5)
+                    
+                current_progress = (current_steps / total_steps )*100
+                rospy.loginfo(f"progress = {current_progress:.2f}%")
+                	
             self.pub.publish(Twist())
-            
             return True
         return False
 # ==================================================
