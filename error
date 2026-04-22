@@ -19,3 +19,11 @@ header:
   seq: 538
   stamp: 
     secs: 1776836254
+
+sudo apt install -y \
+    ros-noetic-gmapping \
+    ros-noetic-amcl \
+    ros-noetic-move-base \
+    ros-noetic-map-server \
+    ros-noetic-laser-scan-matcher \
+    ros-noetic-navigation
