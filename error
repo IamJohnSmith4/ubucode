@@ -74,38 +74,8 @@ sudo chmod 666 /dev/ttyACM0
 rosrun kobuki_node kobuki_node \
     _port:=/dev/ttyACM0
 
-# ติดตั้ง dependencies ที่มีใน apt ก่อน
-sudo apt install -y \
-    ros-noetic-kobuki-driver \
-    ros-noetic-kobuki-msgs \
-    ros-noetic-ecl-streams \
-    ros-noetic-ecl-sigslots \
-    ros-noetic-ecl-geometry \
-    ros-noetic-ecl-threads \
-    ros-noetic-diagnostics
-
-# Clone source
-cd ~/catkin_ws/src
-git clone https://github.com/yujinrobot/kobuki.git
-git clone https://github.com/yujinrobot/kobuki_core.git
-git clone https://github.com/yujinrobot/yujin_ocs.git
-
-# Build
-cd ~/catkin_ws
-catkin_make
-source devel/setup.bash
 
 
- # ลบ yujin_ocs ทิ้งก่อน
-cd ~/catkin_ws/src
-rm -rf yujin_ocs
-
-# Clone เฉพาะ package ที่ต้องการจริงๆ
-git clone https://github.com/yujinrobot/yocs_msgs.git
-git clone https://github.com/yujinrobot/yocs_cmd_vel_mux.git
-git clone https://github.com/yujinrobot/yocs_velocity_smoother.git
-
-# Build ใหม่
-cd ~/catkin_ws
-catkin_make
-source devel/setup.bash
+# ติดตั้งแค่นี้พอ
+sudo apt install ros-noetic-kobuki-driver
+sudo apt install ros-noetic-kobuki-msgs
