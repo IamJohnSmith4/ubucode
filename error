@@ -107,23 +107,18 @@ cd ~/catkin_ws
 catkin_make
 source devel/setup.bash
 
+# ลบ package ที่มีปัญหาออก
+cd ~/catkin_ws/src
+rm -rf yujin_ocs
+rm -rf kobuki
+rm -rf kobuki_core
 
-==> add_subdirectory(kobuki/kobuki_controller_tutorial)
--- Using these message generators: gencpp;geneus;genlisp;gennodejs;genpy
-CMake Error at /home/ubutu2004/catkin_ws/devel/share/yocs_controllers/cmake/yocs_controllersConfig.cmake:113 (message):
-  Project 'yocs_controllers' specifies
-  '/home/ubutu2004/catkin_ws/src/yujin_ocs/yocs_controllers/include' as an
-  include dir, which is not found.  It does neither exist as an absolute
-  directory nor in
-  '/home/ubutu2004/catkin_ws/src/yujin_ocs/yocs_controllers//home/ubutu2004/catkin_ws/src/yujin_ocs/yocs_controllers/include'.
-  Check the issue tracker 'https://github.com/yujinrobot/yujin_ocs/issues'
-  and consider creating a ticket if the problem has not been reported yet.
-Call Stack (most recent call first):
-  /opt/ros/noetic/share/catkin/cmake/catkinConfig.cmake:76 (find_package)
-  kobuki/kobuki_controller_tutorial/CMakeLists.txt:3 (find_package)
+# Clone เฉพาะที่จำเป็นจริงๆ
+git clone https://github.com/kobuki-base/kobuki_core.git
+git clone https://github.com/kobuki-base/kobuki_ros.git
 
-
--- Configuring incomplete, errors occurred!
-See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeOutput.log".
-See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeError.log".
-Invoking "cmake" failed
+# Clean build
+cd ~/catkin_ws
+rm -rf build devel
+catkin_make
+source devel/setup.bash
