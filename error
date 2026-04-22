@@ -74,10 +74,23 @@ sudo chmod 666 /dev/ttyACM0
 rosrun kobuki_node kobuki_node \
     _port:=/dev/ttyACM0
 
-[sudo] password for ubutu2004: 
-Reading package lists... Done
-Building dependency tree       
-Reading state information... Done
-E: Unable to locate package ros-noetic-kobuki-node
-E: Unable to locate package ros-noetic-turtlebot2-drivers
-E: Unable to locate package ros-noetic-yocs-velocity-smoother
+# ติดตั้ง dependencies ที่มีใน apt ก่อน
+sudo apt install -y \
+    ros-noetic-kobuki-driver \
+    ros-noetic-kobuki-msgs \
+    ros-noetic-ecl-streams \
+    ros-noetic-ecl-sigslots \
+    ros-noetic-ecl-geometry \
+    ros-noetic-ecl-threads \
+    ros-noetic-diagnostics
+
+# Clone source
+cd ~/catkin_ws/src
+git clone https://github.com/yujinrobot/kobuki.git
+git clone https://github.com/yujinrobot/kobuki_core.git
+git clone https://github.com/yujinrobot/yujin_ocs.git
+
+# Build
+cd ~/catkin_ws
+catkin_make
+source devel/setup.bash
