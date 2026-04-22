@@ -8,3 +8,10 @@ rosrun talker talker _serial_port:=/dev/ttyUSB0
 
 source ~/catkin_ws/devel/setup.bash
 roslaunch my_robot slam.launch
+
+Transform [sender=unknown_publisher]
+
+
+
+Parameter [robot_description] does not exist, and was not found by searchParam()
+For frame [laser_link]: No transform to fixed frame [map]. TF error: [Could not find a connection between 'map' and 'laser_link' because they are not part of the same tree.Tf has two or more unconnected trees.]
