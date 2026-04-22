@@ -86,9 +86,23 @@ sudo apt install ros-noetic-kobuki-msgs
     <param name="port" value="/dev/ttyUSB1"/>
 </node>
 
-ubutu2004@ubutu2004-OEM-Default-string000:~$ dmesg | grep ttyUSB
-[   67.864555] usb 1-5: pl2303 converter now attached to ttyUSB0
-[  202.672482] usb 1-2: FTDI USB Serial Device converter now attached to ttyUSB1
+cd ~/catkin_ws/src
 
-$ rosrun kobuki_driver kobuki_node  _serial_port:=/dev/ttyUSB1
-[rosrun] Couldn't find executable named kobuki_node below /home/ubutu2004/catkin_ws/src/kobuki_core/kobuki_driver
+# Clone kobuki_core ที่มี driver อยู่
+git clone https://github.com/kobuki-base/kobuki_core.git
+
+# ติดตั้ง dependencies
+sudo apt install -y \
+    ros-noetic-ecl-core \
+    ros-noetic-ecl-mobile-robot \
+    ros-noetic-ecl-streams \
+    ros-noetic-ecl-sigslots \
+    ros-noetic-ecl-geometry \
+    ros-noetic-ecl-threads \
+    ros-noetic-diagnostics \
+    ros-noetic-sophus
+
+# Build
+cd ~/catkin_ws
+catkin_make
+source devel/setup.bash
