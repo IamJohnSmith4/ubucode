@@ -96,24 +96,16 @@ catkin_make
 source devel/setup.bash
 
 
- Could NOT find yocs_msgs (missing: yocs_msgs_DIR)
--- Could not find the required component 'yocs_msgs'. The following CMake error indicates that you either need to install the package with the same name or change your environment so that it can be found.
-CMake Error at /opt/ros/noetic/share/catkin/cmake/catkinConfig.cmake:83 (find_package):
-  Could not find a package configuration file provided by "yocs_msgs" with
-  any of the following names:
+ # ลบ yujin_ocs ทิ้งก่อน
+cd ~/catkin_ws/src
+rm -rf yujin_ocs
 
-    yocs_msgsConfig.cmake
-    yocs_msgs-config.cmake
+# Clone เฉพาะ package ที่ต้องการจริงๆ
+git clone https://github.com/yujinrobot/yocs_msgs.git
+git clone https://github.com/yujinrobot/yocs_cmd_vel_mux.git
+git clone https://github.com/yujinrobot/yocs_velocity_smoother.git
 
-  Add the installation prefix of "yocs_msgs" to CMAKE_PREFIX_PATH or set
-  "yocs_msgs_DIR" to a directory containing one of the above files.  If
-  "yocs_msgs" provides a separate development package or SDK, be sure it has
-  been installed.
-Call Stack (most recent call first):
-  yujin_ocs/yocs_joyop/CMakeLists.txt:12 (find_package)
-
-
--- Configuring incomplete, errors occurred!
-See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeOutput.log".
-See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeError.log".
-Invoking "cmake" failed
+# Build ใหม่
+cd ~/catkin_ws
+catkin_make
+source devel/setup.bash
