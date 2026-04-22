@@ -1,0 +1,60 @@
+Scanning dependencies of target talker
+[ 66%] Building CXX object LS01D/talker(V1.41.171109)/CMakeFiles/talker.dir/src/uart_driver.cpp.o
+[ 66%] Building CXX object LS01D/talker(V1.41.171109)/CMakeFiles/talker.dir/src/main.cpp.o
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp: In function ‘int RestartGetData()’:
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:36:61: error: narrowing conversion of ‘165’ from ‘int’ to ‘char’ [-Wnarrowing]
+   36 |  char wificmd1[] = {0xa5, 0x2C, 0xe1, 0xaa, 0xbb, 0xcc, 0xdd};
+      |                                                             ^
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:36:61: error: narrowing conversion of ‘225’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:36:61: error: narrowing conversion of ‘170’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:36:61: error: narrowing conversion of ‘187’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:36:61: error: narrowing conversion of ‘204’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:36:61: error: narrowing conversion of ‘221’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:37:61: error: narrowing conversion of ‘165’ from ‘int’ to ‘char’ [-Wnarrowing]
+   37 |  char wificmd2[] = {0xa5, 0x20, 0xe1, 0xaa, 0xbb, 0xcc, 0xdd};
+      |                                                             ^
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:37:61: error: narrowing conversion of ‘225’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:37:61: error: narrowing conversion of ‘170’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:37:61: error: narrowing conversion of ‘187’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:37:61: error: narrowing conversion of ‘204’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:37:61: error: narrowing conversion of ‘221’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp: In member function ‘int io_driver::StartScan()’:
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:483:61: error: narrowing conversion of ‘165’ from ‘int’ to ‘char’ [-Wnarrowing]
+  483 |  char wificmd1[] = {0xa5, 0x2C, 0xe1, 0xaa, 0xbb, 0xcc, 0xdd};
+      |                                                             ^
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:483:61: error: narrowing conversion of ‘225’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:483:61: error: narrowing conversion of ‘170’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:483:61: error: narrowing conversion of ‘187’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:483:61: error: narrowing conversion of ‘204’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:483:61: error: narrowing conversion of ‘221’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:484:61: error: narrowing conversion of ‘165’ from ‘int’ to ‘char’ [-Wnarrowing]
+  484 |  char wificmd2[] = {0xa5, 0x20, 0xe1, 0xaa, 0xbb, 0xcc, 0xdd};
+      |                                                             ^
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:484:61: error: narrowing conversion of ‘225’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:484:61: error: narrowing conversion of ‘170’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:484:61: error: narrowing conversion of ‘187’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:484:61: error: narrowing conversion of ‘204’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:484:61: error: narrowing conversion of ‘221’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp: In member function ‘int io_driver::Reset()’:
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:528:63: error: narrowing conversion of ‘165’ from ‘int’ to ‘char’ [-Wnarrowing]
+  528 |        char buf[] = {0xa5,  0x40, 0xe1, 0xaa, 0xbb, 0xcc, 0xdd};
+      |                                                               ^
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:528:63: error: narrowing conversion of ‘225’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:528:63: error: narrowing conversion of ‘170’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:528:63: error: narrowing conversion of ‘187’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:528:63: error: narrowing conversion of ‘204’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:528:63: error: narrowing conversion of ‘221’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp: In member function ‘int io_driver::StopScan()’:
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:537:62: error: narrowing conversion of ‘165’ from ‘int’ to ‘char’ [-Wnarrowing]
+  537 |        char buf[] = {0xa5, 0x21, 0xe1, 0xaa, 0xbb, 0xcc, 0xdd};
+      |                                                              ^
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:537:62: error: narrowing conversion of ‘225’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:537:62: error: narrowing conversion of ‘170’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:537:62: error: narrowing conversion of ‘187’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:537:62: error: narrowing conversion of ‘204’ from ‘int’ to ‘char’ [-Wnarrowing]
+/home/ubutu2004/catkin_ws/src/LS01D/talker(V1.41.171109)/src/uart_driver.cpp:537:62: error: narrowing conversion of ‘221’ from ‘int’ to ‘char’ [-Wnarrowing]
+make[2]: *** [LS01D/talker(V1.41.171109)/CMakeFiles/talker.dir/build.make:76: LS01D/talker(V1.41.171109)/CMakeFiles/talker.dir/src/uart_driver.cpp.o] Error 1
+make[2]: *** Waiting for unfinished jobs....
+make[1]: *** [CMakeFiles/Makefile2:1049: LS01D/talker(V1.41.171109)/CMakeFiles/talker.dir/all] Error 2
+make: *** [Makefile:141: all] Error 2
+Invoking "make -j4 -l4" failed
