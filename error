@@ -131,6 +131,29 @@ CMake Error at /opt/ros/noetic/share/catkin/cmake/catkin_workspace.cmake:100 (me
 Call Stack (most recent call first):
   CMakeLists.txt:69 (catkin_workspace)
 
+/catkin_ws$ catkin_make_isolated --install
+Base path: /home/ubutu2004/catkin_ws
+Source space: /home/ubutu2004/catkin_ws/src
+Build space: /home/ubutu2004/catkin_ws/build_isolated
+Devel space: /home/ubutu2004/catkin_ws/devel_isolated
+Install space: /home/ubutu2004/catkin_ws/install_isolated
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~  traversing 12 packages in topological order:
+~~  - kobuki_bumper2pc (unknown)
+~~  - kobuki_core (unknown)
+~~  - kobuki_auto_docking (unknown)
+~~  - kobuki_description (unknown)
+~~  - kobuki_keyop (unknown)
+~~  - kobuki_node (unknown)
+~~  - kobuki_random_walker (unknown)
+~~  - kobuki_ros (unknown)
+~~  - kobuki_safety_controller (unknown)
+~~  - my_robot
+~~  - talker
+~~  - yocs_msgs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Error: Packages with unknown build types exist
+Can not build workspace with packages of unknown build_type
 
 -- Configuring incomplete, errors occurred!
 See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeOutput.log".
