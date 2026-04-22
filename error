@@ -29,3 +29,27 @@ cd ~/catkin_ws
 rm -rf build devel
 catkin_make
 source devel/setup.bash
+
+
+
+-- Could NOT find yocs_controllers (missing: yocs_controllers_DIR)
+-- Could not find the required component 'yocs_controllers'. The following CMake error indicates that you either need to install the package with the same name or change your environment so that it can be found.
+CMake Error at /opt/ros/noetic/share/catkin/cmake/catkinConfig.cmake:83 (find_package):
+  Could not find a package configuration file provided by "yocs_controllers"
+  with any of the following names:
+
+    yocs_controllersConfig.cmake
+    yocs_controllers-config.cmake
+
+  Add the installation prefix of "yocs_controllers" to CMAKE_PREFIX_PATH or
+  set "yocs_controllers_DIR" to a directory containing one of the above
+  files.  If "yocs_controllers" provides a separate development package or
+  SDK, be sure it has been installed.
+Call Stack (most recent call first):
+  kobuki/kobuki_controller_tutorial/CMakeLists.txt:3 (find_package)
+
+
+-- Configuring incomplete, errors occurred!
+See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeOutput.log".
+See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeError.log".
+Invoking "cmake" failed
