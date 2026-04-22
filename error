@@ -46,3 +46,9 @@ rosrun talker talker _serial_port:=/dev/ttyUSB0
 
 source ~/catkin_ws/devel/setup.bash
 roslaunch my_robot slam.launch
+
+RLException: [slam.launch] is neither a launch file in package [my_robot] nor is [my_robot] a launch file name
+The traceback for the exception was written to the log file
+
+
+
