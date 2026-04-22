@@ -12,6 +12,40 @@ roslaunch my_robot slam.launch
 Transform [sender=unknown_publisher]
 
 
+nano ~/catkin_ws/src/my_robot/launch/slam.launch
 
-Parameter [robot_description] does not exist, and was not found by searchParam()
-For frame [laser_link]: No transform to fixed frame [map]. TF error: [Could not find a connection between 'map' and 'laser_link' because they are not part of the same tree.Tf has two or more unconnected trees.]
+<launch>
+
+  <!-- TF: map → odom → base_link → laser_link -->
+  <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
+        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
+
+  <!-- laser_scan_matcher สร้าง odom จาก LiDAR -->
+  <node pkg="laser_scan_matcher" type="laser_scan_matcher_node"
+        name="laser_scan_matcher" output="screen">
+    <param name="base_frame"   value="base_link"/>
+    <param name="odom_frame"   value="odom"/>
+    <param name="publish_odom" value="true"/>
+    <param name="publish_tf"   value="true"/>
+    <param name="use_imu"      value="false"/>
+    <param name="use_odom"     value="false"/>
+  </node>
+
+  <!-- gmapping -->
+  <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen">
+    <param name="base_frame"   value="base_link"/>
+    <param name="odom_frame"   value="odom"/>
+    <param name="map_frame"    value="map"/>
+    <param name="scan"         value="/scan"/>
+    <param name="maxUrange"    value="7.0"/>
+    <param name="particles"    value="80"/>
+    <param name="linearUpdate" value="0.1"/>
+    <param name="angularUpdate" value="0.1"/>
+    <param name="delta"        value="0.05"/>
+    <param name="xmin"         value="-30.0"/>
+    <param name="ymin"         value="-30.0"/>
+    <param name="xmax"         value="30.0"/>
+    <param name="ymax"         value="30.0"/>
+  </node>
+
+</launch>
