@@ -54,19 +54,22 @@ nano ~/catkin_ws/src/my_robot/launch/slam.launch
   </node>
 
 </launch>
+sudo apt install -y \
+    ros-noetic-kobuki-driver \
+    ros-noetic-kobuki-node \
+    ros-noetic-kobuki-msgs \
+    ros-noetic-turtlebot2-drivers \
+    ros-noetic-yocs-velocity-smoother
 
- rosrun tf tf_echo map base_link
-Failure at 1776841595.268694908
-Exception thrown:Could not find a connection between 'map' and 'base_link' because they are not part of the same tree.Tf has two or more unconnected trees.
-The current list of frames is:
-Frame odom exists with parent map.
-Frame laser_link exists with parent base_link.
-Frame base_link exists with parent world.
+ls /dev/ttyUSB*
+# ควรเห็น ttyUSB0 (LiDAR) และ ttyUSB1 (Kobuki)
+# หรืออาจเป็น ttyACM0 สำหรับ Kobuki
+ls /dev/ttyACM*
 
-Failure at 1776841595.268945103
-Exception thrown:Could not find a connection between 'map' and 'base_link' because they are not part of the same tree.Tf has two or more unconnected trees.
-The current list of frames is:
-Frame odom exists with parent map.
-Frame laser_link exists with parent base_link.
-Frame base_link exists with parent world.
+sudo chmod 666 /dev/ttyUSB1
+# หรือ
+sudo chmod 666 /dev/ttyACM0
 
+# Terminal ใหม่
+rosrun kobuki_node kobuki_node \
+    _port:=/dev/ttyACM0
