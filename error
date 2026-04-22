@@ -73,3 +73,11 @@ sudo chmod 666 /dev/ttyACM0
 # Terminal ใหม่
 rosrun kobuki_node kobuki_node \
     _port:=/dev/ttyACM0
+
+[sudo] password for ubutu2004: 
+Reading package lists... Done
+Building dependency tree       
+Reading state information... Done
+E: Unable to locate package ros-noetic-kobuki-node
+E: Unable to locate package ros-noetic-turtlebot2-drivers
+E: Unable to locate package ros-noetic-yocs-velocity-smoother
