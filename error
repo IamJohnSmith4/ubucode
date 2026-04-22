@@ -53,3 +53,31 @@ Call Stack (most recent call first):
 See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeOutput.log".
 See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeError.log".
 Invoking "cmake" failed
+
+
+Sorting... Done
+Full Text Search... Done
+ros-noetic-kobuki-core/focal,now 0.7.12-1focal.20250426.013850 amd64 [installed]
+  Non-ROS software for Kobuki, Yujin Robot's mobile research base.
+
+ros-noetic-kobuki-dock-drive/focal,now 0.7.12-1focal.20250426.013331 amd64 [installed]
+  Dock driving library for Kobuki.
+
+ros-noetic-kobuki-dock-drive-dbgsym/focal,now 0.7.12-1focal.20250426.013331 amd64 [installed]
+  debug symbols for ros-noetic-kobuki-dock-drive
+
+ros-noetic-kobuki-driver/focal,now 0.7.12-1focal.20250426.013535 amd64 [installed]
+  C++ driver library for Kobuki: Pure C++ driver library for Kobuki.
+
+ros-noetic-kobuki-driver-dbgsym/focal,now 0.7.12-1focal.20250426.013535 amd64 [installed]
+  debug symbols for ros-noetic-kobuki-driver
+
+ros-noetic-kobuki-ftdi/focal,now 0.7.12-1focal.20250426.010754 amd64 [installed]
+  Utilities for flashing and enabling Kobuki's USB connection.
+
+ros-noetic-kobuki-ftdi-dbgsym/focal,now 0.7.12-1focal.20250426.010754 amd64 [installed]
+  debug symbols for ros-noetic-kobuki-ftdi
+
+ros-noetic-kobuki-msgs/focal,now 0.7.0-1focal.20250426.013442 amd64 [installed]
+  Kobuki message and service types: custom messages and services for Kobuki packages.
+
