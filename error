@@ -139,3 +139,15 @@ rm -rf build devel build_isolated devel_isolated
 catkin_make
 source devel/setup.bash
 
+ubutu2004@ubutu2004-OEM-Default-string000:~$ sudo chmod 666 /dev/ttyUSB1
+[sudo] password for ubutu2004: 
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun kobuki_driver 
+Usage: rosrun [--prefix cmd] [--debug] PACKAGE EXECUTABLE [ARGS]
+  rosrun will locate PACKAGE and try to find
+  an executable named EXECUTABLE in the PACKAGE tree.
+  If it finds it, it will run it with ARGS.
+ubutu2004@ubutu2004-OEM-Default-string000:~$ ls ~/catkin_ws/devel/lib/kobuki_drver/
+ls: cannot access '/home/ubutu2004/catkin_ws/devel/lib/kobuki_drver/': No such file or directory
+ubutu2004@ubutu2004-OEM-Default-string000:~$ ls ~/catkin_ws/devel/lib/kobuki_driver/
+demo_kobuki_initialisation  demo_kobuki_simple_loop   simple_keyop
+demo_kobuki_sigslots        kobuki_velocity_commands  version_info
