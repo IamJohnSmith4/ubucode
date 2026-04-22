@@ -33,3 +33,29 @@ ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list
 /startOrStop
 /tf
 /tf_static
+
+
+ rosrun kobuki_driver kobuki_velocity_commands _port:=/dev/ttyUSB1
+Hello Dude
+Reproduce the issue with slow motion command
+[-0.03,0.4] -> [-76,-75]
+fw will generate left right wheel speed as [-76 mm/sec | 16 mm/sec] 
+When you have vx(-0.030000), wz(0.400000), robot have to generate left right wheel speed as -0.076000, 0.016000 
+My quick code result for speed and radius are -76, -75 
+fw will generate left right wheel speed as [-76 mm/sec | 16 mm/sec] 
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep mobile
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list
+/clicked_point
+/initialpose
+/map
+/map_metadata
+/map_updates
+/move_base_simple/goal
+/pose2D
+/rosout
+/rosout_agg
+/scan
+/slam_gmapping/entropy
+/startOrStop
+/tf
+/tf_static
