@@ -16,3 +16,20 @@ nano ~/catkin_ws/src/my_robot/launch/slam.launch
 
 rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/commands/velocity
 
+butu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep cmd_vel
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep velocity
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list
+/clicked_point
+/initialpose
+/map
+/map_metadata
+/map_updates
+/move_base_simple/goal
+/pose2D
+/rosout
+/rosout_agg
+/scan
+/slam_gmapping/entropy
+/startOrStop
+/tf
+/tf_static
