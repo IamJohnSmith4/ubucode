@@ -15,47 +15,17 @@ Transform [sender=unknown_publisher]
 nano ~/catkin_ws/src/my_robot/launch/slam.launch
 
 rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/commands/velocity
+cd ~/catkin_ws/src
 
-butu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep cmd_vel
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep velocity
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list
-/clicked_point
-/initialpose
-/map
-/map_metadata
-/map_updates
-/move_base_simple/goal
-/pose2D
-/rosout
-/rosout_agg
-/scan
-/slam_gmapping/entropy
-/startOrStop
-/tf
-/tf_static
+# ลบอันเก่าออก
+rm -rf kobuki_core
 
+# Clone version ที่มี kobuki_node จริงๆ
+git clone -b melodic https://github.com/yujinrobot/kobuki.git
+git clone -b melodic https://github.com/yujinrobot/kobuki_core.git
 
- rosrun kobuki_driver kobuki_velocity_commands _port:=/dev/ttyUSB1
-Hello Dude
-Reproduce the issue with slow motion command
-[-0.03,0.4] -> [-76,-75]
-fw will generate left right wheel speed as [-76 mm/sec | 16 mm/sec] 
-When you have vx(-0.030000), wz(0.400000), robot have to generate left right wheel speed as -0.076000, 0.016000 
-My quick code result for speed and radius are -76, -75 
-fw will generate left right wheel speed as [-76 mm/sec | 16 mm/sec] 
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep mobile
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list
-/clicked_point
-/initialpose
-/map
-/map_metadata
-/map_updates
-/move_base_simple/goal
-/pose2D
-/rosout
-/rosout_agg
-/scan
-/slam_gmapping/entropy
-/startOrStop
-/tf
-/tf_static
+# Build
+cd ~/catkin_ws
+rm -rf build devel
+catkin_make
+source devel/setup.bash
