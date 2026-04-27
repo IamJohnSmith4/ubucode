@@ -19,3 +19,7 @@ rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/comm
 
 cd ~/catkin_ws/src/kobuki-melodic
 rm -rf kobuki_controller_tutorial kobuki_capabilities kobuki_auto_docking kobuki_random_walker kobuki_safety_controller kobuki_keyop kobuki_testsuite
+
+cd ~/catkin_ws
+rm -rf build devel
+catkin_make
