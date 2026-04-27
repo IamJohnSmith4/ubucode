@@ -18,3 +18,11 @@ cd ~/catkin_ws
 catkin_make --pkg kobuki_node
 
 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
+
+
+ubutu2004@ubutu2004-OEM-Default-string000:~/catkin_ws/src$ git clone https://github.com/yujinrobot/kobuki_ros.git
+Cloning into 'kobuki_ros'...
+Username for 'https://github.com': lamJohnSmith4
+Password for 'https://cd%20~%2Fcatkin_ws%0Dcatkin_make%20--pkg%20kobuki_nodelamJohnSmith4@github.com': 
+remote: Invalid username or token. Password authentication is not supported for Git operations.
+fatal: Authentication failed for 'https://github.com/yujinrobot/kobuki_ros.git/'
