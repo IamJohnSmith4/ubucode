@@ -15,35 +15,6 @@ nano ~/catkin_ws/src/my_robot/launch/slam.launch
 rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/commands/velocity
 
 
-cd ~/catkin_ws/src
-wget https://github.com/yujinrobot/kobuki/archive/refs/heads/noetic.zip
-unzip noetic.zip
-mv kobuki-noetic kobuki
-
-ubutu2004@ubutu2004-OEM-Default-string000:~/catkin_ws$ rosdep install --from-paths src --ignore-src -r -y
-ERROR: the following packages/stacks could not have their rosdep keys resolved
-to system dependencies:
-kobuki_node: Cannot locate rosdep definition for [capabilities]
-kobuki_testsuite: Cannot locate rosdep definition for [python_orocos_kdl]
-kobuki_capabilities: Cannot locate rosdep definition for [std_capabilities]
-kobuki_controller_tutorial: Cannot locate rosdep definition for [yocs_controllers]
-kobuki_auto_docking: Cannot locate rosdep definition for [yocs_cmd_vel_mux]
-kobuki_random_walker: Cannot locate rosdep definit
-
-ion for [yocs_controllers]
-kobuki_safety_controller: Cannot locate rosdep definition for [yocs_controllers]
-kobuki_keyop: Cannot locate rosdep definition for [yocs_velocity_smoother]
-Continuing to install resolvable dependencies...
-#All required rosdeps installed successfully
-
-rm noetic.zip
-
-cd ~/catkin_ws
-rosdep install --from-paths src --ignore-src -r -y
-catkin_make --pkg kobuki_node
-
-
-
 
 
 Using these message generators: gencpp;geneus;genlisp;gennodejs;genpy
@@ -69,3 +40,6 @@ See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeOutput.log".
 See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeError.log".
 make: *** [Makefile:1860: cmake_check_build_system] Error 1
 Invoking "make cmake_check_build_system" failed
+
+cd ~/catkin_ws
+catkin_make --cmake-args -DCATKIN_BLACKLIST_PACKAGES="kobuki_controller_tutorial;kobuki_capabilities;kobuki_auto_docking;kobuki_random_walker;kobuki_safety_controller;kobuki_keyop;kobuki_testsuite"
