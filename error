@@ -5,31 +5,22 @@ roscore
 sudo chmod 666 /dev/ttyUSB0
 rosrun talker talker _serial_port:=/dev/ttyUSB0
 
-source ~/catkin_ws/devel/setup.bash
+sudo chmod 666 /dev/ttyUSB1
+rosrun kobuki_driver simple_keyop
+
 roslaunch my_robot slam.launch
 
 nano ~/catkin_ws/src/my_robot/launch/slam.launch
 
 rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/commands/velocity
 
-git config --global --unset credential.helper
-git config --system --unset credential.helper 2>/dev/null
-rm -f ~/.git-credentials
-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
 
+cd ~/catkin_ws/src
+wget https://github.com/yujinrobot/kobuki/archive/refs/heads/master.zip
+unzip master.zip
+mv kobuki-master kobuki
+rm master.zip
 
-ubutu2004@ubutu2004-OEM-Default-string000:~/catkin_ws/src$ git clone https://github.com/yujinrobot/kobuki_ros.git
-Cloning into 'kobuki_ros'...
-Username for 'https://github.com': lamJohnSmith4
-Password for 'https://cd%20~%2Fcatkin_ws%0Dcatkin_make%20--pkg%20kobuki_nodelamJohnSmith4@github.com': 
-remote: Invalid username or token. Password authentication is not supported for Git operations.
-fatal: Authentication failed for 'https://github.com/yujinrobot/kobuki_ros.git/'
-
-
-
- wget https://github.com/yujinrobot/kobuki_ros/archive/refs/heads/melodic.zip
---2026-04-27 12:34:07--  https://github.com/yujinrobot/kobuki_ros/archive/refs/heads/melodic.zip
-Resolving github.com (github.com)... 20.205.243.166
-Connecting to github.com (github.com)|20.205.243.166|:443... connected.
-HTTP request sent, awaiting response... 404 Not Found
-2026-04-27 12:34:08 ERROR 404: Not Found.
+cd ~/catkin_ws
+rosdep install --from-paths src --ignore-src -r -y
+catkin_make --pkg kobuki_node
