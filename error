@@ -1,16 +1,12 @@
-source /opt/ros/noetic/setup.bash
-source ~/catkin_ws/devel/setup.bash
+//run
+
 roscore
 
-source ~/catkin_ws/devel/setup.bash
 sudo chmod 666 /dev/ttyUSB0
 rosrun talker talker _serial_port:=/dev/ttyUSB0
 
 source ~/catkin_ws/devel/setup.bash
 roslaunch my_robot slam.launch
-
-Transform [sender=unknown_publisher]
-
 
 nano ~/catkin_ws/src/my_robot/launch/slam.launch
 
