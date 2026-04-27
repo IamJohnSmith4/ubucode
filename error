@@ -21,3 +21,24 @@ rm -rf kobuki_controller_tutorial kobuki_capabilities kobuki_auto_docking kobuki
 cd ~/catkin_ws
 rm -rf build devel
 catkin_make
+
+Base path: /home/ubutu2004/catkin_ws
+Source space: /home/ubutu2004/catkin_ws/src
+Build space: /home/ubutu2004/catkin_ws/build
+Devel space: /home/ubutu2004/catkin_ws/devel
+Install space: /home/ubutu2004/catkin_ws/install
+Multiple packages found with the same name "kobuki":
+- kobuki-melodic/kobuki
+- kobuki/kobuki
+Multiple packages found with the same name "kobuki_bumper2pc":
+- kobuki-melodic/kobuki_bumper2pc
+- kobuki/kobuki_bumper2pc
+Multiple packages found with the same name "kobuki_description":
+- kobuki-melodic/kobuki_description
+- kobuki/kobuki_description
+Multiple packages found with the same name "kobuki_node":
+- kobuki-melodic/kobuki_node
+- kobuki/kobuki_node
+Multiple packages found with the same name "kobuki_rapps":
+- kobuki-melodic/kobuki_rapps
+- kobuki/kobuki_rapps
