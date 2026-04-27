@@ -35,11 +35,25 @@ Call Stack (most recent call first):
   kobuki/kobuki_controller_tutorial/CMakeLists.txt:3 (find_package)
 
 
+Using these message generators: gencpp;geneus;genlisp;gennodejs;genpy
+CMake Error at /home/ubutu2004/catkin_ws/devel/share/kobuki_keyop/cmake/kobuki_keyopConfig.cmake:113 (message):
+  Project 'kobuki_keyop' specifies
+  '/home/ubutu2004/catkin_ws/src/kobuki-melodic/kobuki_keyop/include' as an
+  include dir, which is not found.  It does neither exist as an absolute
+  directory nor in
+  '/home/ubutu2004/catkin_ws/src/kobuki-melodic/kobuki_keyop//home/ubutu2004/catkin_ws/src/kobuki-melodic/kobuki_keyop/include'.
+  Check the issue tracker 'https://github.com/yujinrobot/kobuki/issues' and
+  consider creating a ticket if the problem has not been reported yet.
+Call Stack (most recent call first):
+  /opt/ros/noetic/share/catkin/cmake/catkinConfig.cmake:76 (find_package)
+  kobuki/kobuki_node/CMakeLists.txt:3 (find_package)
+
+
 -- Configuring incomplete, errors occurred!
 See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeOutput.log".
 See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeError.log".
-make: *** [Makefile:1860: cmake_check_build_system] Error 1
-Invoking "make cmake_check_build_system" failed
+Invoking "cmake" failed
+
 
 cd ~/catkin_ws
 catkin_make --cmake-args -DCATKIN_BLACKLIST_PACKAGES="kobuki_controller_tutorial;kobuki_capabilities;kobuki_auto_docking;kobuki_random_walker;kobuki_safety_controller;kobuki_keyop;kobuki_testsuite"
