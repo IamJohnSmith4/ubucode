@@ -16,10 +16,10 @@ rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/comm
 
 
 cd ~/catkin_ws/src
-wget https://github.com/yujinrobot/kobuki/archive/refs/heads/master.zip
-unzip master.zip
-mv kobuki-master kobuki
-rm master.zip
+wget https://github.com/yujinrobot/kobuki/archive/refs/heads/noetic.zip
+unzip noetic.zip
+mv kobuki-noetic kobuki
+rm noetic.zip
 
 cd ~/catkin_ws
 rosdep install --from-paths src --ignore-src -r -y
