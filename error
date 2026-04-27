@@ -42,3 +42,20 @@ Multiple packages found with the same name "kobuki_node":
 Multiple packages found with the same name "kobuki_rapps":
 - kobuki-melodic/kobuki_rapps
 - kobuki/kobuki_rapps
+
+ubutu2004@ubutu2004-OEM-Default-string000:~/catkin_ws$ grep -r "yocs_controller" ~/catkin_ws/src/kobuki/
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_random_walker/package.xml:  <build_depend>yocs_controllers</build_depend>
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_random_walker/package.xml:  <run_depend>yocs_controllers</run_depend>
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_random_walker/CMakeLists.txt:                                        yocs_controllers)
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_random_walker/CMakeLists.txt:                              yocs_controllers)
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_random_walker/include/kobuki_random_walker/random_walker_controller.hpp:#include <yocs_controllers/default_controller.hpp>
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_controller_tutorial/package.xml:  <build_depend>yocs_controllers</build_depend>
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_controller_tutorial/package.xml:  <run_depend>yocs_controllers</run_depend>
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_controller_tutorial/CMakeLists.txt:                                        yocs_controllers)
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_controller_tutorial/CMakeLists.txt:                              yocs_controllers)
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_controller_tutorial/include/kobuki_controller_tutorial/bump_blink_controller.hpp:#include <yocs_controllers/default_controller.hpp>
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_safety_controller/package.xml:  <build_depend>yocs_controllers</build_depend>
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_safety_controller/package.xml:  <run_depend>yocs_controllers</run_depend>
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_safety_controller/CMakeLists.txt:find_package(catkin REQUIRED COMPONENTS roscpp nodelet pluginlib std_msgs geometry_msgs kobuki_msgs yocs_controllers ecl_threads)
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_safety_controller/CMakeLists.txt:   CATKIN_DEPENDS roscpp nodelet pluginlib std_msgs geometry_msgs kobuki_msgs yocs_controllers ecl_threads
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_safety_controller/include/kobuki_safety_controller/safety_controller.hpp:#include <yocs_controllers/default_controller.hpp>
