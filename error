@@ -16,3 +16,19 @@ rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/comm
 
 
 
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic hz /scan
+subscribed to [/scan]
+no new messages
+no new messages
+no new messages
+no new messages
+no new messages
+no new messages
+no new messages
+^Cno new messages
+ubutu2004@ubutu2004-OEM-Default-string000:~$ dmesg | grep ttyUSB 
+[    5.940338] usb 1-2: FTDI USB Serial Device converter now attached to ttyUSB0
+[    5.968722] usb 1-5: pl2303 converter now attached to ttyUSB1
+[  147.311449] pl2303 ttyUSB1: pl2303 converter now disconnected from ttyUSB1
+[  158.458427] usb 1-5: pl2303 converter now attached to ttyUSB1
+ubutu2004@ubutu2004-OEM-Default-string000:~$ 
