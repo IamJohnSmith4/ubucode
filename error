@@ -19,6 +19,21 @@ cd ~/catkin_ws/src
 wget https://github.com/yujinrobot/kobuki/archive/refs/heads/noetic.zip
 unzip noetic.zip
 mv kobuki-noetic kobuki
+
+ubutu2004@ubutu2004-OEM-Default-string000:~/catkin_ws$ rosdep install --from-paths src --ignore-src -r -y
+ERROR: the following packages/stacks could not have their rosdep keys resolved
+to system dependencies:
+kobuki_node: Cannot locate rosdep definition for [capabilities]
+kobuki_testsuite: Cannot locate rosdep definition for [python_orocos_kdl]
+kobuki_capabilities: Cannot locate rosdep definition for [std_capabilities]
+kobuki_controller_tutorial: Cannot locate rosdep definition for [yocs_controllers]
+kobuki_auto_docking: Cannot locate rosdep definition for [yocs_cmd_vel_mux]
+kobuki_random_walker: Cannot locate rosdep definition for [yocs_controllers]
+kobuki_safety_controller: Cannot locate rosdep definition for [yocs_controllers]
+kobuki_keyop: Cannot locate rosdep definition for [yocs_velocity_smoother]
+Continuing to install resolvable dependencies...
+#All required rosdeps installed successfully
+
 rm noetic.zip
 
 cd ~/catkin_ws
