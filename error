@@ -17,52 +17,5 @@ rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/comm
 
 
 
-Using these message generators: gencpp;geneus;genlisp;gennodejs;genpy
--- Could NOT find yocs_controllers (missing: yocs_controllers_DIR)
--- Could not find the required component 'yocs_controllers'. The following CMake error indicates that you either need to install the package with the same name or change your environment so that it can be found.
-CMake Error at /opt/ros/noetic/share/catkin/cmake/catkinConfig.cmake:83 (find_package):
-  Could not find a package configuration file provided by "yocs_controllers"
-  with any of the following names:
-
-    yocs_controllersConfig.cmake
-    yocs_controllers-config.cmake
-
-  Add the installation prefix of "yocs_controllers" to CMAKE_PREFIX_PATH or
-  set "yocs_controllers_DIR" to a directory containing one of the above
-  files.  If "yocs_controllers" provides a separate development package or
-  SDK, be sure it has been installed.
-Call Stack (most recent call first):
-  kobuki/kobuki_controller_tutorial/CMakeLists.txt:3 (find_package)
-
-
-Using these message generators: gencpp;geneus;genlisp;gennodejs;genpy
-CMake Error at /home/ubutu2004/catkin_ws/devel/share/kobuki_keyop/cmake/kobuki_keyopConfig.cmake:113 (message):
-  Project 'kobuki_keyop' specifies
-  '/home/ubutu2004/catkin_ws/src/kobuki-melodic/kobuki_keyop/include' as an
-  include dir, which is not found.  It does neither exist as an absolute
-  directory nor in
-  '/home/ubutu2004/catkin_ws/src/kobuki-melodic/kobuki_keyop//home/ubutu2004/catkin_ws/src/kobuki-melodic/kobuki_keyop/include'.
-  Check the issue tracker 'https://github.com/yujinrobot/kobuki/issues' and
-  consider creating a ticket if the problem has not been reported yet.
-Call Stack (most recent call first):
-  /opt/ros/noetic/share/catkin/cmake/catkinConfig.cmake:76 (find_package)
-  kobuki/kobuki_node/CMakeLists.txt:3 (find_package)
-
-
--- Configuring incomplete, errors occurred!
-See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeOutput.log".
-See also "/home/ubutu2004/catkin_ws/build/CMakeFiles/CMakeError.log".
-Invoking "cmake" failed
-
-
-cd ~/catkin_ws
-catkin_make --cmake-args -DCATKIN_BLACKLIST_PACKAGES="kobuki_controller_tutorial;kobuki_capabilities;kobuki_auto_docking;kobuki_random_walker;kobuki_safety_controller;kobuki_keyop;kobuki_testsuite"
-
-/catkin_ws$ sudo apt-get install ros-noetic-ar-track-alvar
-Reading package lists... Done
-Building dependency tree       
-Reading state information... Done
-E: Unable to locate package ros-noetic-ar-track-alvar
-
-cd ~/catkin_ws
-catkin_make --cmake-args -DCATKIN_BLACKLIST_PACKAGES="kobuki_controller_tutorial;kobuki_capabilities;kobuki_auto_docking;kobuki_random_walker;kobuki_safety_controller;kobuki_keyop;kobuki_testsuite;yocs_ar_marker_tracking;yocs_diff_drive_pose_controller;yocs_navigator;yocs_cmd_vel_mux;yocs_velocity_smoother;yocs_controllers"
+cd ~/catkin_ws/src/kobuki-melodic
+rm -rf kobuki_controller_tutorial kobuki_capabilities kobuki_auto_docking kobuki_random_walker kobuki_safety_controller kobuki_keyop kobuki_testsuite
