@@ -44,6 +44,11 @@ Invoking "make cmake_check_build_system" failed
 cd ~/catkin_ws
 catkin_make --cmake-args -DCATKIN_BLACKLIST_PACKAGES="kobuki_controller_tutorial;kobuki_capabilities;kobuki_auto_docking;kobuki_random_walker;kobuki_safety_controller;kobuki_keyop;kobuki_testsuite"
 
+/catkin_ws$ sudo apt-get install ros-noetic-ar-track-alvar
+Reading package lists... Done
+Building dependency tree       
+Reading state information... Done
+E: Unable to locate package ros-noetic-ar-track-alvar
 
 cd ~/catkin_ws
 catkin_make --cmake-args -DCATKIN_BLACKLIST_PACKAGES="kobuki_controller_tutorial;kobuki_capabilities;kobuki_auto_docking;kobuki_random_walker;kobuki_safety_controller;kobuki_keyop;kobuki_testsuite;yocs_ar_marker_tracking;yocs_diff_drive_pose_controller;yocs_navigator;yocs_cmd_vel_mux;yocs_velocity_smoother;yocs_controllers"
