@@ -2,10 +2,10 @@
 1
 roscore
 2
-sudo chmod 666 /dev/ttyUSB0
-rosrun talker talker _serial_port:=/dev/ttyUSB0
-3
 sudo chmod 666 /dev/ttyUSB1
+rosrun talker talker _serial_port:=/dev/ttyUSB1
+3
+sudo chmod 666 /dev/ttyUSB0
 rosrun kobuki_driver simple_keyop
 4
 roslaunch my_robot slam.launch
