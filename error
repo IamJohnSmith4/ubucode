@@ -16,3 +16,5 @@ cd ~/catkin_ws/src
 git clone https://github.com/yujinrobot/kobuki_ros.git
 cd ~/catkin_ws
 catkin_make --pkg kobuki_node
+
+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
