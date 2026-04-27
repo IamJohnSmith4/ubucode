@@ -12,12 +12,9 @@ nano ~/catkin_ws/src/my_robot/launch/slam.launch
 
 rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/commands/velocity
 
-cd ~/catkin_ws/src
-wget https://github.com/yujinrobot/kobuki_ros/archive/refs/heads/melodic.zip
-unzip melodic.zip
-mv kobuki_ros-melodic kobuki_ros
-rm melodic.zip
-
+git config --global --unset credential.helper
+git config --system --unset credential.helper 2>/dev/null
+rm -f ~/.git-credentials
 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
 
 
