@@ -3,7 +3,7 @@
 roscore
 2
 sudo chmod 666 /dev/ttyUSB1
-rosrun talker talker _serial_port:=/dev/ttyUSB1
+rosrun talker talker _serial_port:=/dev/ttyUSB1 scan:=/scan_raw
 3
 sudo chmod 666 /dev/ttyUSB0
 rosrun kobuki_driver simple_keyop
@@ -14,10 +14,24 @@ rviz
 6
 rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/commands/velocity
 
+sudo apt install ros-noetic-laser-filters
 
-<param name="maxRange"    value="5.0"/>
-<param name="maxUrange"   value="4.5"/>
-<param name="lsigma"      value="0.075"/>
-<param name="ogain"       value="3.0"/>
-<param name="lskip"       value="0"/>
-<param name="minimumScore" value="200"/>
+nano ~/catkin_ws/src/my_robot/config/laser_filter.yaml
+
+scan_filter_chain:
+- name: range
+  type: laser_filters/LaserScanRangeFilter
+  params:
+    use_message_range_limits: false
+    lower_threshold: 0.15
+    upper_threshold: 5.0
+    lower_replacement_value: -.inf
+    upper_replacement_value: .inf
+
+<node pkg="laser_filters" type="scan_to_scan_filter_chain"
+      name="laser_filter" output="screen">
+  <rosparam command="load" 
+            file="$(find my_robot)/config/laser_filter.yaml"/>
+  <remap from="scan" to="/scan_raw"/>
+  <remap from="scan_filtered" to="/scan"/>
+</node>
