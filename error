@@ -14,7 +14,11 @@ rviz
 6
 rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/commands/velocity
 
-<param name="use_vel"         value="false"/>
-    <param name="max_iterations"  value="10"/>
-    <param name="kf_dist_linear"  value="0.1"/>
-    <param name="kf_dist_angular" value="0.17"/>
+
+<param name="temporalUpdate" value="1.0"/>
+<param name="resampleThreshold" value="0.5"/>
+<param name="lskip"          value="0"/>
+<param name="srr"  value="0.1"/>
+<param name="srt"  value="0.2"/>
+<param name="str"  value="0.1"/>
+<param name="stt"  value="0.2"/>
