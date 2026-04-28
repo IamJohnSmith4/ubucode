@@ -123,3 +123,47 @@ At time 1777363807.058
 - Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
             in RPY (radian) [0.000, -0.000, 0.023]
             in RPY (degree) [0.000, -0.000, 1.306]
+
+
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /scan | grep frame_id
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+  frame_id: "laser_link"
+^CException ignored in: <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'>
+BrokenPipeError: [Errno 32] Broken pipe
+
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep scan
+/scan
+/scan_raw
