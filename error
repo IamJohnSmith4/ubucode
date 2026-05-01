@@ -135,5 +135,39 @@ nano ~/catkin_ws/src/my_robot/launch/navigation.launch
   </node>
 
 </launch>
+$ rosrun tf tf_echo map base_link
+Failure at 1777622247.220934628
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+Frame base_link exists with parent odom.
+
+Failure at 1777622247.221132122
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+Frame base_link exists with parent odom.
+
+Failure at 1777622248.193838671
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+Frame base_link exists with parent odom.
+
+Failure at 1777622249.193766239
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+Frame base_link exists with parent odom.
+
+Failure at 1777622250.193741060
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+Frame base_link exists with parent odom.
+
+Failure at 1777622251.193737129
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+
 
 
