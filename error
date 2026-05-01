@@ -82,66 +82,35 @@ cat ~/catkin_ws/src/my_robot/launch/navigation.launch | grep map_server
 
 nano ~/catkin_ws/src/my_robot/launch/navigation.launch
 
-sudo apt remove ros-noetic-amcl
-sudo apt install ros-noetic-amcl
+ rosrun tf tf_echo map base_link
+Failure at 1777624132.338699453
+Exception thrown:Lookup would require extrapolation 0.170255334s into the past.  Requested time 1777624132.344068289 but the earliest data is at time 1777624132.514323473, when looking up transform from frame [base_link] to frame [map]
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+Frame base_link exists with parent odom.
+Frame odom exists with parent map.
 
-<launch>
+Failure at 1777624132.338922023
+Exception thrown:Lookup would require extrapolation 0.170255334s into the past.  Requested time 1777624132.344068289 but the earliest data is at time 1777624132.514323473, when looking up transform from frame [base_link] to frame [map]
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+Frame base_link exists with parent odom.
+Frame odom exists with parent map.
 
-  <!-- TF -->
-  <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
-        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
-  <node pkg="tf" type="static_transform_publisher" name="odom_to_base"
-        args="0 0 0 0 0 0 odom base_link 50"/>
+At time 1777624133.349
+- Translation: [5.263, 0.125, 0.000]
+- Rotation: in Quaternion [0.000, 0.000, 0.991, -0.134]
+            in RPY (radian) [0.000, -0.000, -2.872]
+            in RPY (degree) [0.000, -0.000, -164.581]
+At time 1777624134.354
+- Translation: [5.263, 0.125, 0.000]
+- Rotation: in Quaternion [0.000, 0.000, 0.991, -0.134]
+            in RPY (radian) [0.000, -0.000, -2.872]
+            in RPY (degree) [0.000, -0.000, -164.581]
+At time 1777624135.360
+- Translation: [5.263, 0.125, 0.000]
+- Rotation: in Quaternion [0.000, 0.000, 0.991, -0.134]
+            in RPY (radian) [0.000, -0.000, -2.872]
+            in RPY (degree) [0.000, -0.000, -164.581]
 
-  <!-- map_server -->
-  <node pkg="map_server" type="map_server" name="map_server"
-        args="/home/ubutu2004/map/floor3.yaml"
-        output="screen"/>
-
-  <!-- AMCL -->
-  <node pkg="amcl" type="amcl" name="amcl" output="screen"
-        respawn="true">
-    <param name="use_map_topic"       value="false"/>
-    <param name="tf_broadcast"        value="true"/>
-    <param name="odom_model_type"     value="diff"/>
-    <param name="odom_frame_id"       value="odom"/>
-    <param name="base_frame_id"       value="base_link"/>
-    <param name="global_frame_id"     value="map"/>
-    <param name="laser_frame_id"      value="laser_link"/>
-    <param name="laser_model_type"    value="likelihood_field"/>
-    <param name="min_particles"       value="100"/>
-    <param name="max_particles"       value="500"/>
-    <param name="laser_max_range"     value="7.0"/>
-    <param name="laser_max_beams"     value="60"/>
-    <param name="update_min_d"        value="0.1"/>
-    <param name="update_min_a"        value="0.2"/>
-    <param name="transform_tolerance" value="1.0"/>
-    <param name="initial_pose_x"      value="0.0"/>
-    <param name="initial_pose_y"      value="0.0"/>
-    <param name="initial_pose_a"      value="0.0"/>
-    <param name="gui_publish_rate"    value="10.0"/>
-  </node>
-
-  <!-- move_base -->
-  <node pkg="move_base" type="move_base" name="move_base" output="screen">
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="global_costmap"/>
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="local_costmap"/>
-    <rosparam file="$(find my_robot)/config/global_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/local_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
-              command="load"/>
-    <param name="base_global_planner"
-           value="navfn/NavfnROS"/>
-    <param name="base_local_planner"
-           value="base_local_planner/TrajectoryPlannerROS"/>
-    <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
-  </node>
-
-</launch>
-
-</launch>
 
