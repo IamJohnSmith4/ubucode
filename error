@@ -137,15 +137,18 @@ nano ~/catkin_ws/src/my_robot/launch/navigation.launch
 rostopic pub -1 /initialpose geometry_msgs/PoseWithCovarianceStamped \
 '{header: {frame_id: "map"}, pose: {pose: {position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}}'
 
-$ rosnode list
-/laser_node
-/rosout
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode list
-/amcl
-/base_to_laser
-/laser_node
-/map_server
-/move_base
-/odom_to_base
-/rosout
+$$ rostopic pub -1 /initialpose geometry_msgs/PoseWithCovarianceStamped \
+> '{header: {frame_id: "map"}, pose: {pose: {position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}}'
+publishing and latching message for 3.0 seconds
+~$ rosservice list | grep amcl
+/amcl/get_loggers
+/amcl/set_logger_level
+/amcl/set_parameters
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun tf tf_echo map odom
+Failure at 1777623405.918873055
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+Frame base_link exists with parent odom.
+
 
