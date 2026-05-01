@@ -78,93 +78,14 @@ scan_filter_chain:
   </node>
 
 </launch>
+$ roslaunch my_robot navigation.launch
+... logging to /home/ubutu2004/.ros/log/e59b8040-452b-11f1-aa16-2de4969e85c0/roslaunch-ubutu2004-OEM-Default-string000-8643.log
+Checking log directory for disk usage. This may take a while.
+Press Ctrl-C to interrupt
+Done checking log file disk usage. Usage is <1GB.
 
-sudo apt install -y \
-    ros-noetic-amcl \
-    ros-noetic-move-base \
-    ros-noetic-map-server \
-    ros-noetic-dwa-local-planner \
-    ros-noetic-global-planner
+RLException: error loading <rosparam> tag: 
+	file does not exist [/home/ubutu2004/catkin_ws/src/my_robot/config/local_costmap.yaml]
+XML is <rosparam file="$(find my_robot)/config/local_costmap.yaml" command="load"/>
+The traceback for the exception was written to the log file
 
-mkdir -p ~/catkin_ws/src/my_robot/config
-
-nano ~/catkin_ws/src/my_robot/config/costmap_common.yaml
-obstacle_range: 3.0
-raytrace_range: 5.0
-robot_radius: 0.25
-inflation_radius: 0.4
-observation_sources: laser_scan_sensor
-laser_scan_sensor:
-  sensor_frame: laser_link
-  data_type: LaserScan
-  topic: /scan
-  marking: true
-  clearing: true
-
-nano ~/catkin_ws/src/my_robot/config/global_costmap.yaml
-global_costmap:
-  global_frame: map
-  robot_base_frame: base_link
-  update_frequency: 1.0
-  publish_frequency: 0.5
-  static_map: true
-
-nano ~/catkin_ws/src/my_robot/config/base_local_planner.yaml
-TrajectoryPlannerROS:
-  max_vel_x: 0.3
-  min_vel_x: 0.05
-  max_vel_theta: 0.5
-  min_in_place_vel_theta: 0.1
-  acc_lim_x: 0.5
-  acc_lim_theta: 0.8
-  holonomic_robot: false
-  yaw_goal_tolerance: 0.1
-  xy_goal_tolerance: 0.15
-
-nano ~/catkin_ws/src/my_robot/launch/navigation.launch
-<launch>
-
-  <!-- TF -->
-  <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
-        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
-
-  <!-- โหลดแผนที่ -->
-  <node pkg="map_server" type="map_server" name="map_server"
-        args="$(env HOME)/map/floor13.yaml"/>
-
-  <!-- AMCL -->
-  <node pkg="amcl" type="amcl" name="amcl" output="screen">
-    <param name="use_map_topic"       value="true"/>
-    <param name="odom_model_type"     value="diff"/>
-    <param name="odom_frame_id"       value="odom"/>
-    <param name="base_frame_id"       value="base_link"/>
-    <param name="global_frame_id"     value="map"/>
-    <param name="laser_model_type"    value="likelihood_field"/>
-    <param name="min_particles"       value="500"/>
-    <param name="max_particles"       value="2000"/>
-    <param name="laser_max_range"     value="7.0"/>
-    <param name="update_min_d"        value="0.1"/>
-    <param name="update_min_a"        value="0.2"/>
-    <param name="initial_pose_x"      value="0.0"/>
-    <param name="initial_pose_y"      value="0.0"/>
-    <param name="initial_pose_a"      value="0.0"/>
-  </node>
-
-  <!-- move_base -->
-  <node pkg="move_base" type="move_base" name="move_base" output="screen">
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="global_costmap"/>
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="local_costmap"/>
-    <rosparam file="$(find my_robot)/config/global_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/local_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
-              command="load"/>
-    <param name="base_global_planner" value="navfn/NavfnROS"/>
-    <param name="base_local_planner"  value="base_local_planner/TrajectoryPlannerROS"/>
-    <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
-  </node>
-
-</launch>
