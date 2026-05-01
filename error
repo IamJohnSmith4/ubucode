@@ -137,3 +137,15 @@ nano ~/catkin_ws/src/my_robot/launch/navigation.launch
 rostopic pub -1 /initialpose geometry_msgs/PoseWithCovarianceStamped \
 '{header: {frame_id: "map"}, pose: {pose: {position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}}'
 
+$ rosnode list
+/laser_node
+/rosout
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode list
+/amcl
+/base_to_laser
+/laser_node
+/map_server
+/move_base
+/odom_to_base
+/rosout
+
