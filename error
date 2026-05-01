@@ -87,61 +87,6 @@ sudo apt install ros-noetic-amcl
 
 <launch>
 
-  <!-- TF: base_link → laser_link -->
-  <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
-        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
-
-  <!-- TF: odom → base_link -->
-  <node pkg="tf" type="static_transform_publisher" name="odom_to_base"
-        args="0 0 0 0 0 0 odom base_link 50"/>
-
-  <!-- map_server -->
-  <node pkg="map_server" type="map_server" name="map_server"
-        args="/home/ubutu2004/map/floor3.yaml"
-        output="screen"/>
-
-  <!-- AMCL -->
-  <node pkg="amcl" type="amcl" name="amcl" output="screen">
-    <param name="use_map_topic"    value="true"/>
-    <param name="first_map_only"   value="false"/>
-    <param name="odom_model_type"  value="diff"/>
-    <param name="odom_frame_id"    value="odom"/>
-    <param name="base_frame_id"    value="base_link"/>
-    <param name="global_frame_id"  value="map"/>
-    <param name="laser_model_type" value="likelihood_field"/>
-    <param name="min_particles"    value="500"/>
-    <param name="max_particles"    value="2000"/>
-    <param name="laser_max_range"  value="7.0"/>
-    <param name="update_min_d"     value="0.1"/>
-    <param name="update_min_a"     value="0.2"/>
-    <param name="initial_pose_x"   value="0.0"/>
-    <param name="initial_pose_y"   value="0.0"/>
-    <param name="initial_pose_a"   value="0.0"/>
-  </node>
-
-  <!-- move_base -->
-  <node pkg="move_base" type="move_base" name="move_base" output="screen">
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="global_costmap"/>
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="local_costmap"/>
-    <rosparam file="$(find my_robot)/config/global_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/local_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
-              command="load"/>
-    <param name="base_global_planner" value="navfn/NavfnROS"/>
-    <param name="base_local_planner"
-           value="base_local_planner/TrajectoryPlannerROS"/>
-    <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
-  </node>
-
-rostopic pub -1 /initialpose geometry_msgs/PoseWithCovarianceStamped \
-'{header: {frame_id: "map"}, pose: {pose: {position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}}'
-
-<launch>
-
   <!-- TF -->
   <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
         args="0 0 0.2 0 0 0 base_link laser_link 50"/>
@@ -195,6 +140,8 @@ rostopic pub -1 /initialpose geometry_msgs/PoseWithCovarianceStamped \
            value="base_local_planner/TrajectoryPlannerROS"/>
     <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
   </node>
+
+</launch>
 
 </launch>
 
