@@ -37,154 +37,68 @@ scan_filter_chain:
 </node>
 
 
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun tf tf_echo map laser_link
-At time 1777363791.387
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363792.073
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363793.073
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363794.073
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363795.073
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363796.061
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363797.066
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363798.061
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363799.066
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363800.072
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363801.073
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363802.073
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363803.073
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363804.073
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363805.057
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363806.062
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-At time 1777363807.058
-- Translation: [-0.006, 0.012, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.011, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.023]
-            in RPY (degree) [0.000, -0.000, 1.306]
-
-
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /scan | grep frame_id
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-  frame_id: "laser_link"
-^CException ignored in: <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'>
-BrokenPipeError: [Errno 32] Broken pipe
-
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep scan
-/scan
-/scan_raw
-
-
-
-rostopic type /scan_raw
-sensor_msgs/LaserScan
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /scan_raw
-header: 
-  seq: 16628
-  stamp: 
-    secs: 1777365090
-    nsecs: 135632820
-  frame_id: "laser_link"
-angle_min: 0.0
-angle_max: 6.2831854820251465
-angle_increment: 0.017501909285783768
-time_increment: 3.378536632681062e-07
-scan_time: 0.00012128946400480345
-range_min: 0.15000000596046448
-range_max: 8.0
-ranges: [inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf]
-intensities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Scan Matching Failed, using odometry. Likelihood=0
+lp:0 0 -3.14159
+op:0 0 -3.14159
+Average Scan Matching Score=0
+neff= 30
+Registering Scans:Done
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1777610135.431306657]: Error in scan matching
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1777610135.552273099]: Error in scan matching
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1777610135.643033450]: Error in scan matching
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1777610135.733671023]: Error in scan matching
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1777610135.824011843]: Error in scan matching
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1777610135.944940503]: Error in scan matching
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1777610136.036116024]: Error in scan matching
