@@ -77,17 +77,36 @@ scan_filter_chain:
     <param name="ymax"           value="50.0"/>
   </node>
 
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep map
-/map
-/map_metadata
-/map_updates
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode list
-/amcl
-/base_to_laser
-/laser_node
-/map_server
-/move_base
-/rosout
-/rviz_1777620548391142160
-ubutu2004@ubutu2004-OEM-Default-string000:~$ 
+$ rostopic echo /amcl_pose | head -5
+^C
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun tf tf_echo map base_link
+Failure at 1777621282.431836021
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+
+Failure at 1777621282.432024854
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+
+Failure at 1777621283.397508310
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+
+Failure at 1777621284.397450541
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+
+Failure at 1777621285.397466807
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
+
+Failure at 1777621286.397482410
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame laser_link exists with parent base_link.
 
