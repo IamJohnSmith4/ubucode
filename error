@@ -76,37 +76,64 @@ scan_filter_chain:
     <param name="xmax"           value="50.0"/>
     <param name="ymax"           value="50.0"/>
   </node>
+</launch>
 
-$ rostopic echo /amcl_pose | head -5
-^C
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun tf tf_echo map base_link
-Failure at 1777621282.431836021
-Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
-The current list of frames is:
-Frame laser_link exists with parent base_link.
+cat ~/catkin_ws/src/my_robot/launch/navigation.launch | grep map_server
 
-Failure at 1777621282.432024854
-Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
-The current list of frames is:
-Frame laser_link exists with parent base_link.
+nano ~/catkin_ws/src/my_robot/launch/navigation.launch
 
-Failure at 1777621283.397508310
-Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
-The current list of frames is:
-Frame laser_link exists with parent base_link.
+<launch>
 
-Failure at 1777621284.397450541
-Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
-The current list of frames is:
-Frame laser_link exists with parent base_link.
+  <!-- TF: base_link → laser_link -->
+  <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
+        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
 
-Failure at 1777621285.397466807
-Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
-The current list of frames is:
-Frame laser_link exists with parent base_link.
+  <!-- TF: odom → base_link -->
+  <node pkg="tf" type="static_transform_publisher" name="odom_to_base"
+        args="0 0 0 0 0 0 odom base_link 50"/>
 
-Failure at 1777621286.397482410
-Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
-The current list of frames is:
-Frame laser_link exists with parent base_link.
+  <!-- map_server -->
+  <node pkg="map_server" type="map_server" name="map_server"
+        args="/home/ubutu2004/map/floor3.yaml"
+        output="screen"/>
+
+  <!-- AMCL -->
+  <node pkg="amcl" type="amcl" name="amcl" output="screen">
+    <param name="use_map_topic"    value="true"/>
+    <param name="first_map_only"   value="false"/>
+    <param name="odom_model_type"  value="diff"/>
+    <param name="odom_frame_id"    value="odom"/>
+    <param name="base_frame_id"    value="base_link"/>
+    <param name="global_frame_id"  value="map"/>
+    <param name="laser_model_type" value="likelihood_field"/>
+    <param name="min_particles"    value="500"/>
+    <param name="max_particles"    value="2000"/>
+    <param name="laser_max_range"  value="7.0"/>
+    <param name="update_min_d"     value="0.1"/>
+    <param name="update_min_a"     value="0.2"/>
+    <param name="initial_pose_x"   value="0.0"/>
+    <param name="initial_pose_y"   value="0.0"/>
+    <param name="initial_pose_a"   value="0.0"/>
+  </node>
+
+  <!-- move_base -->
+  <node pkg="move_base" type="move_base" name="move_base" output="screen">
+    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
+              command="load" ns="global_costmap"/>
+    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
+              command="load" ns="local_costmap"/>
+    <rosparam file="$(find my_robot)/config/global_costmap.yaml"
+              command="load"/>
+    <rosparam file="$(find my_robot)/config/local_costmap.yaml"
+              command="load"/>
+    <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
+              command="load"/>
+    <param name="base_global_planner" value="navfn/NavfnROS"/>
+    <param name="base_local_planner"
+           value="base_local_planner/TrajectoryPlannerROS"/>
+    <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
+  </node>
+
+</launch>
+
 
