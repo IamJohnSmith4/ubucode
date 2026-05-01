@@ -135,6 +135,93 @@ nano ~/catkin_ws/src/my_robot/launch/navigation.launch
   </node>
 
 </launch>
-rostopic pub -1 /initialpose geometry_msgs/PoseWithCovarianceStamped '{header: {frame_id: "map"}, pose: {pose: {position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}}'
+$ rostopic pub -1 /initialpose geometry_msgs/PoseWithCovarianceStamped '{header: {frame_id: "map"}, pose: {pose: {position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}}'
+publishing and latching message for 3.0 seconds
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun tf tf_echo map base_link
+Failure at 1777622516.710522807
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame base_link exists with parent odom.
+Frame laser_link exists with parent base_link.
+
+Failure at 1777622516.710803797
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+The current list of frames is:
+Frame base_link exists with parent odom.
+Frame laser_link exists with parent base_link.
+
+Failure at 1777622517.686811118
+Exception thrown:"map" passed to lookupTransform argument target_frame does not exist. 
+
+~$ rosnode info /amcl
+--------------------------------------------------------------------------------
+Node [/amcl]
+Publications: 
+ * /amcl/parameter_descriptions [dynamic_reconfigure/ConfigDescription]
+ * /amcl/parameter_updates [dynamic_reconfigure/Config]
+ * /amcl_pose [geometry_msgs/PoseWithCovarianceStamped]
+ * /diagnostics [diagnostic_msgs/DiagnosticArray]
+ * /particlecloud [geometry_msgs/PoseArray]
+ * /rosout [rosgraph_msgs/Log]
+ * /tf [tf2_msgs/TFMessage]
+
+Subscriptions: 
+ * /initialpose [geometry_msgs/PoseWithCovarianceStamped]
+ * /map [nav_msgs/OccupancyGrid]
+ * /scan [sensor_msgs/LaserScan]
+ * /tf [tf2_msgs/TFMessage]
+ * /tf_static [tf2_msgs/TFMessage]
+
+Services: 
+ * /amcl/get_loggers
+ * /amcl/set_logger_level
+ * /amcl/set_parameters
+ * /global_localization
+ * /request_nomotion_update
+ * /set_map
+
+
+contacting node http://ubutu2004-OEM-Default-string000:39065/ ...
+Pid: 12738
+Connections:
+ * topic: /rosout
+    * to: /rosout
+    * direction: outbound (59061 - 127.0.0.1:37028) [15]
+    * transport: TCPROS
+ * topic: /tf
+    * to: /amcl
+    * direction: outbound
+    * transport: INTRAPROCESS
+ * topic: /tf
+    * to: /move_base
+    * direction: outbound (59061 - 127.0.0.1:37032) [18]
+    * transport: TCPROS
+ * topic: /tf
+    * to: /amcl (http://ubutu2004-OEM-Default-string000:39065/)
+    * direction: inbound
+    * transport: INTRAPROCESS
+ * topic: /tf
+    * to: /base_to_laser (http://ubutu2004-OEM-Default-string000:36313/)
+    * direction: inbound (54056 - ubutu2004-OEM-Default-string000:48597) [16]
+    * transport: TCPROS
+ * topic: /tf
+    * to: /odom_to_base (http://ubutu2004-OEM-Default-string000:35717/)
+    * direction: inbound (51172 - ubutu2004-OEM-Default-string000:32923) [17]
+    * transport: TCPROS
+ * topic: /scan
+    * to: /laser_node (http://ubutu2004-OEM-Default-string000:42225/)
+    * direction: inbound (53336 - ubutu2004-OEM-Default-string000:55469) [19]
+    * transport: TCPROS
+ * topic: /map
+    * to: /map_server (http://ubutu2004-OEM-Default-string000:44575/)
+    * direction: inbound (36126 - ubutu2004-OEM-Default-string000:46757) [11]
+    * transport: TCPROS
+
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /amcl_pose | head -5
+header: 
+  seq: 1
+  stamp: 
+    secs: 1777622563
+    nsecs: 778383416
 
 
