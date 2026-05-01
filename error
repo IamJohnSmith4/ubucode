@@ -36,69 +36,26 @@ scan_filter_chain:
   <remap from="scan_filtered" to="/scan"/>
 </node>
 
-
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Scan Matching Failed, using odometry. Likelihood=0
-lp:0 0 -3.14159
-op:0 0 -3.14159
-Average Scan Matching Score=0
-neff= 30
-Registering Scans:Done
-:err: Valid: 0/360 invalid: 360.
-[WARN] [1777610135.431306657]: Error in scan matching
-:err: Valid: 0/360 invalid: 360.
-[WARN] [1777610135.552273099]: Error in scan matching
-:err: Valid: 0/360 invalid: 360.
-[WARN] [1777610135.643033450]: Error in scan matching
-:err: Valid: 0/360 invalid: 360.
-[WARN] [1777610135.733671023]: Error in scan matching
-:err: Valid: 0/360 invalid: 360.
-[WARN] [1777610135.824011843]: Error in scan matching
-:err: Valid: 0/360 invalid: 360.
-[WARN] [1777610135.944940503]: Error in scan matching
-:err: Valid: 0/360 invalid: 360.
-[WARN] [1777610136.036116024]: Error in scan matching
+rostopic echo /scan | grep -v inf | head -20
+header: 
+  seq: 4032
+  stamp: 
+    secs: 1777611114
+    nsecs: 914082551
+  frame_id: "laser_link"
+angle_min: 0.0
+angle_max: 6.2831854820251465
+angle_increment: 0.017501909285783768
+time_increment: 3.3661538623164233e-07
+scan_time: 0.00012084492482244968
+range_min: 0.15000000596046448
+range_max: 8.0
+intensities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+---
+header: 
+  seq: 4033
+  stamp: 
+    secs: 1777611115
+    nsecs:  34927475
+Exception ignored in: <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'>
+BrokenPipeError: [Errno 32] Broken pipe
