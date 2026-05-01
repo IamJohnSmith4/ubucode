@@ -77,15 +77,16 @@ scan_filter_chain:
     <param name="ymax"           value="50.0"/>
   </node>
 
-</launch>
-$ roslaunch my_robot navigation.launch
-... logging to /home/ubutu2004/.ros/log/e59b8040-452b-11f1-aa16-2de4969e85c0/roslaunch-ubutu2004-OEM-Default-string000-8643.log
-Checking log directory for disk usage. This may take a while.
-Press Ctrl-C to interrupt
-Done checking log file disk usage. Usage is <1GB.
-
-RLException: error loading <rosparam> tag: 
-	file does not exist [/home/ubutu2004/catkin_ws/src/my_robot/config/local_costmap.yaml]
-XML is <rosparam file="$(find my_robot)/config/local_costmap.yaml" command="load"/>
-The traceback for the exception was written to the log file
+cat > ~/catkin_ws/src/my_robot/config/local_costmap.yaml << 'EOF'
+local_costmap:
+  global_frame: odom
+  robot_base_frame: base_link
+  update_frequency: 5.0
+  publish_frequency: 2.0
+  static_map: false
+  rolling_window: true
+  width: 4.0
+  height: 4.0
+  resolution: 0.05
+EOF
 
