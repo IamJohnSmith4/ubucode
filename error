@@ -200,9 +200,5 @@ rviz
 </node>
 
 </launch>
-process[base_to_laser-1]: started with pid [7632]
-process[map_server-2]: started with pid [7633]
-process[amcl-3]: started with pid [7638]
-process[move_base-4]: started with pid [7641]
-[INFO] [1777965086.981262948]: Loading map from image "/home/ubutu2004/map/floor3v2.pgm"
-ERROR: cannot launch node of type [kobuki_node/kobuki_node]: Cannot locate node of type [kobuki_node] in package [kobuki_node]. Make sure file exists in package path and permission is set to executable (chmod +x)
+[WARN] [1777966355.162408934]: Timed out waiting for transform from base_link to map to become available before running costmap, tf error: canTransform: target_frame map does not exist.. canTransform returned after 0.100996 timeout was 0.1.
+[WARN] [1777966358.767472282]: No laser scan received (and thus no pose updates have been published) for 1777966358.767339 seconds.  Verify that data is being published on the /scan topic.
