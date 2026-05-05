@@ -200,5 +200,41 @@ rviz
 </node>
 
 </launch>
-[WARN] [1777966355.162408934]: Timed out waiting for transform from base_link to map to become available before running costmap, tf error: canTransform: target_frame map does not exist.. canTransform returned after 0.100996 timeout was 0.1.
-[WARN] [1777966358.767472282]: No laser scan received (and thus no pose updates have been published) for 1777966358.767339 seconds.  Verify that data is being published on the /scan topic.
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep map
+/map
+/map_metadata
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode list | grep map
+/map_server
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun tf tf_monitor
+
+
+
+RESULTS: for all Frames
+
+Frames:
+
+All Broadcasters:
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000865516 Max Delay: 0.00168521
+Frame: laser_link published by unknown_publisher Average Delay: -0.0492723 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 77.7761 Hz, Average Delay: -0.0134596 Max Delay: 0.00168521
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000910801 Max Delay: 0.00168521
+Frame: laser_link published by unknown_publisher Average Delay: -0.0492396 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 72.3814 Hz, Average Delay: -0.0129238 Max Delay: 0.00168521
+
+
