@@ -13,11 +13,13 @@ rosrun kobuki_driver simple_keyop
 # Terminal 4
 roslaunch my_robot slam.launch
 
-# Terminal 5 — ขับหุ่น
+# Terminal 5 — 
+rviz
+
+
+6
 rosrun teleop_twist_keyboard teleop_twist_keyboard.py \
     cmd_vel:=/mobile_base/commands/velocity \
     _speed:=0.15 _turn:=0.2
-6
-rviz
 
 
