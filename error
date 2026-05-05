@@ -18,5 +18,6 @@ rosrun teleop_twist_keyboard teleop_twist_keyboard.py \
     cmd_vel:=/mobile_base/commands/velocity \
     _speed:=0.15 _turn:=0.2
 6
-rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/commands/velocity
+rviz
+
 
