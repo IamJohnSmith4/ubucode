@@ -132,7 +132,7 @@ sudo chmod 666 /dev/ttyUSB0
 rosrun kobuki_driver simple_keyop
 
 # Terminal 4
-roslaunch my_robot navigation.launch
+roslaunch kobuki_node minimal.launch
 
 # Terminal 5
 rviz
