@@ -76,3 +76,7 @@ rosrun teleop_twist_keyboard teleop_twist_keyboard.py \
   </node>
 
 </launch>
+
+
+
+Parameter [robot_description] does not exist, and was not found by searchParam()
