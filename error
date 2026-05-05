@@ -192,5 +192,11 @@ rviz
            value="base_local_planner/TrajectoryPlannerROS"/>
     <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
   </node>
+<!-- Kobuki base driver - publishes odom → base_link -->
+<node pkg="kobuki_node" type="kobuki_node" name="kobuki"
+      output="screen">
+  <param name="device_port" value="/dev/ttyUSB0"/>
+  <rosparam file="$(find kobuki_node)/param/base.yaml" command="load"/>
+</node>
 
 </launch>
