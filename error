@@ -120,6 +120,7 @@ rosrun teleop_twist_keyboard teleop_twist_keyboard.py \
 </launch>
 
 </launch>
-
+<node pkg="nodelet" type="nodelet" name="pose2d_to_odom" 
+      args="standalone laser_scan_matcher/pose2d_to_odom"/>
 
 rosrun laser_scan_matcher laser_scan_matcher_node _publish_odom:=true _publish_pose2D:=false _publish_tf:=true _base_frame:=base_link _odom_frame:=odom _fixed_frame:=odom
