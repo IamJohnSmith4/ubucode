@@ -64,6 +64,15 @@ rosrun teleop_twist_keyboard teleop_twist_keyboard.py \
     <param name="ymin"           value="-50.0"/>
     <param name="xmax"           value="50.0"/>
     <param name="ymax"           value="50.0"/>
+<!-- Robot State Publisher -->
+<node pkg="robot_state_publisher" type="robot_state_publisher" 
+      name="robot_state_publisher">
+  <param name="publish_frequency" value="50.0"/>
+</node>
+
+<!-- Joint State Publisher -->
+<node pkg="joint_state_publisher" type="joint_state_publisher"
+      name="joint_state_publisher"/>
   </node>
 
 </launch>
