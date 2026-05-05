@@ -119,59 +119,20 @@ rosrun teleop_twist_keyboard teleop_twist_keyboard.py \
 
 </launch>
 
-</launch>
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode info /laser_scan_matcher
---------------------------------------------------------------------------------
-Node [/laser_scan_matcher]
-Publications: 
- * /pose2D [geometry_msgs/Pose2D]
- * /rosout [rosgraph_msgs/Log]
- * /tf [tf2_msgs/TFMessage]
+navi
+# Terminal 1
+roscore
 
-Subscriptions: 
- * /scan [sensor_msgs/LaserScan]
- * /tf [tf2_msgs/TFMessage]
- * /tf_static [tf2_msgs/TFMessage]
+# Terminal 2
+sudo chmod 666 /dev/ttyUSB1
+rosrun talker talker _serial_port:=/dev/ttyUSB1
 
-Services: 
- * /laser_scan_matcher/get_loggers
- * /laser_scan_matcher/set_logger_level
+# Terminal 3
+sudo chmod 666 /dev/ttyUSB0
+rosrun kobuki_driver simple_keyop
 
+# Terminal 4
+roslaunch my_robot navigation.launch
 
-contacting node http://ubutu2004-OEM-Default-string000:36347/ ...
-Pid: 5346
-Connections:
- * topic: /rosout
-    * to: /rosout
-    * direction: outbound (52263 - 127.0.0.1:55656) [16]
-    * transport: TCPROS
- * topic: /tf
-    * to: /laser_scan_matcher
-    * direction: outbound
-    * transport: INTRAPROCESS
- * topic: /tf
-    * to: /slam_gmapping
-    * direction: outbound (52263 - 127.0.0.1:55662) [12]
-    * transport: TCPROS
- * topic: /tf
-    * to: /rviz_1777961632954648812
-    * direction: outbound (52263 - 127.0.0.1:55668) [10]
-    * transport: TCPROS
- * topic: /tf
-    * to: /laser_scan_matcher (http://ubutu2004-OEM-Default-string000:36347/)
-    * direction: inbound
-    * transport: INTRAPROCESS
- * topic: /tf
-    * to: /base_to_laser (http://ubutu2004-OEM-Default-string000:42725/)
-    * direction: inbound (57942 - ubutu2004-OEM-Default-string000:53139) [17]
-    * transport: TCPROS
- * topic: /tf
-    * to: /slam_gmapping (http://ubutu2004-OEM-Default-string000:38511/)
-    * direction: inbound (52010 - ubutu2004-OEM-Default-string000:38549) [18]
-    * transport: TCPROS
- * topic: /scan
-    * to: /laser_node (http://ubutu2004-OEM-Default-string000:46393/)
-    * direction: inbound (45654 - ubutu2004-OEM-Default-string000:54085) [13]
-    * transport: TCPROS
-
-
+# Terminal 5
+rviz
