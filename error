@@ -220,3 +220,4 @@ TrajectoryPlannerROS:
   dwa: true
   meter_scoring: true
 EOF
+rostopic echo /move_base/global_costmap/costmap --noarr
