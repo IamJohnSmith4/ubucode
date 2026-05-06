@@ -288,3 +288,42 @@ Node: unknown_publisher 77.7761 Hz, Average Delay: -0.0134596 Max Delay: 0.00168
   </node>
   
 </launch>
+
+
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode | grep move_base
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode list | grep move_base
+/move_base
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /move_base/goal
+header: 
+  seq: 2
+  stamp: 
+    secs: 1778045435
+    nsecs: 575274778
+  frame_id: ''
+goal_id: 
+  stamp: 
+    secs: 0
+    nsecs:         0
+  id: ''
+goal: 
+  target_pose: 
+    header: 
+      seq: 2
+      stamp: 
+        secs: 1778045435
+        nsecs: 488247577
+      frame_id: "map"
+    pose: 
+      position: 
+        x: 6.240541934967041
+        y: -1.2316863536834717
+        z: 0.0
+      orientation: 
+        x: 0.0
+        y: 0.0
+        z: 0.4977109241330924
+        w: 0.8673429748367039
+---
+^Cubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /mobile_base/comman/velocity
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /move_base/status
+WARNING: topic [/move_base/status] does not appear to be published yet
