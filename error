@@ -21,71 +21,54 @@ rviz
 rosrun teleop_twist_keyboard teleop_twist_keyboard.py \
     cmd_vel:=/mobile_base/commands/velocity \
     _speed:=0.15 _turn:=0.2
-
 <launch>
 
-  <!-- TF -->
+  <!-- TF: base_link → laser_link -->
   <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
-        args="0 0 0.2 0 0 0 base_footprint laser_link 50"/>
-
-  <!-- map_server -->
-  <node pkg="map_server" type="map_server" name="map_server"
-        args="/home/ubutu2004/map/floor3v2.yaml"
-        output="screen"/>
-
-  <!-- AMCL -->
-  <node pkg="amcl" type="amcl" name="amcl" output="screen"
-        respawn="true">
-    <param name="use_map_topic"       value="false"/>
-    <param name="tf_broadcast"        value="true"/>
-    <param name="odom_model_type"     value="diff"/>
-    <param name="odom_frame_id"       value="odom"/>
-    <param name="base_frame_id"       value="base_footprint"/>
-    <param name="global_frame_id"     value="map"/>
-    <param name="laser_frame_id"      value="laser_link"/>
-    <param name="laser_model_type"    value="likelihood_field"/>
-    <param name="min_particles"       value="100"/>
-    <param name="max_particles"       value="500"/>
-    <param name="laser_max_range"     value="7.0"/>
-    <param name="laser_max_beams"     value="60"/>
-    <param name="update_min_d"        value="0.1"/>
-    <param name="update_min_a"        value="0.2"/>
-    <param name="transform_tolerance" value="1.0"/>
-    <param name="initial_pose_x"      value="0.0"/>
-    <param name="initial_pose_y"      value="0.0"/>
-    <param name="initial_pose_a"      value="0.0"/>
-    <param name="gui_publish_rate"    value="10.0"/>
+        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
+        
+  <node pkg="nodelet" type="nodelet" name="pose2d_to_odom" 
+      args="standalone laser_scan_matcher/pose2d_to_odom"/>
+      
+  <!-- laser_scan_matcher -->
+  <node pkg="laser_scan_matcher" type="laser_scan_matcher_node"
+        name="laser_scan_matcher" output="screen">
+    <param name="base_frame"      value="base_link"/>
+    <param name="odom_frame"      value="odom"/>
+    <param name="fixed_frame"     value="odom"/>
+    <param name="publish_odom"    value="true"/>
+    <param name="publish_tf"      value="true"/>
+    <param name="publish_pose"      value="true"/>
+    <param name="publish_pose2D"      value="false"/>
+    <param name="use_imu"         value="false"/>
+    <param name="use_odom"        value="false"/>
+    <param name="use_vel"         value="false"/>
+    <param name="max_iterations"  value="10"/>
+    <param name="kf_dist_linear"  value="0.1"/>
+    <param name="kf_dist_angular" value="0.1"/>
   </node>
 
-  <!-- move_base -->
-  <node pkg="move_base" type="move_base" name="move_base" output="screen">
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="global_costmap"/>
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="local_costmap"/>
-    <rosparam file="$(find my_robot)/config/global_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/local_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
-              command="load"/>
-    <param name="base_global_planner"
-           value="navfn/NavfnROS"/>
-    <param name="base_local_planner"
-           value="base_local_planner/TrajectoryPlannerROS"/>
-    <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
+  <!-- gmapping -->
+  <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen">
+    <param name="base_frame"     value="base_link"/>
+    <param name="odom_frame"     value="odom"/>
+    <param name="map_frame"      value="map"/>
+    <param name="scan"           value="/scan"/>
+    <param name="maxRange"       value="8.0"/>
+    <param name="maxUrange"      value="7.0"/>
+    <param name="particles"      value="50"/>
+    <param name="linearUpdate"   value="0.1"/>
+    <param name="angularUpdate"  value="0.1"/>
+    <param name="temporalUpdate" value="1.0"/>
+    <param name="delta"          value="0.05"/>
+    <param name="xmin"           value="-50.0"/>
+    <param name="ymin"           value="-50.0"/>
+    <param name="xmax"           value="50.0"/>
+    <param name="ymax"           value="50.0"/>
   </node>
-  
-  <!-- Kobuki base driver - publishes odom → base_link -->
-  <node pkg="kobuki_node" type="kobuki_node" name="kobuki"
-      output="screen">
-    <param name="device_port" value="/dev/ttyUSB0"/>
-    <rosparam file="$(find kobuki_node)/param/base.yaml" command="load"/>
-  </node>
-  
+
 </launch>
 
-navi
 # Terminal 1
 roscore
 
