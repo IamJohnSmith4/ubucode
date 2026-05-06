@@ -141,95 +141,6 @@ rviz
 
   <!-- TF -->
   <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
-        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
-  <node pkg="tf" type="static_transform_publisher" name="odom_to_base"
-        args="0 0 0 0 0 0 odom base_link 50"/>
-
-  <!-- map_server -->
-  <node pkg="map_server" type="map_server" name="map_server"
-        args="/home/ubutu2004/map/floor3v2.yaml"
-        output="screen"/>
-
-  <!-- AMCL -->
-  <node pkg="amcl" type="amcl" name="amcl" output="screen"
-        respawn="true">
-    <param name="use_map_topic"       value="false"/>
-    <param name="tf_broadcast"        value="true"/>
-    <param name="odom_model_type"     value="diff"/>
-    <param name="odom_frame_id"       value="odom"/>
-    <param name="base_frame_id"       value="base_link"/>
-    <param name="global_frame_id"     value="map"/>
-    <param name="laser_frame_id"      value="laser_link"/>
-    <param name="laser_model_type"    value="likelihood_field"/>
-    <param name="min_particles"       value="100"/>
-    <param name="max_particles"       value="500"/>
-    <param name="laser_max_range"     value="7.0"/>
-    <param name="laser_max_beams"     value="60"/>
-    <param name="update_min_d"        value="0.1"/>
-    <param name="update_min_a"        value="0.2"/>
-    <param name="transform_tolerance" value="1.0"/>
-    <param name="initial_pose_x"      value="0.0"/>
-    <param name="initial_pose_y"      value="0.0"/>
-    <param name="initial_pose_a"      value="0.0"/>
-    <param name="gui_publish_rate"    value="10.0"/>
-  </node>
-
-  <!-- move_base -->
-  <node pkg="move_base" type="move_base" name="move_base" output="screen">
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="global_costmap"/>
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="local_costmap"/>
-    <rosparam file="$(find my_robot)/config/global_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/local_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
-              command="load"/>
-    <param name="base_global_planner"
-           value="navfn/NavfnROS"/>
-    <param name="base_local_planner"
-           value="base_local_planner/TrajectoryPlannerROS"/>
-    <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
-  </node>
-<!-- Kobuki base driver - publishes odom → base_link -->
-<node pkg="kobuki_node" type="kobuki_node" name="kobuki"
-      output="screen">
-  <param name="device_port" value="/dev/ttyUSB0"/>
-  <rosparam file="$(find kobuki_node)/param/base.yaml" command="load"/>
-</node>
-
-</launch>
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep map
-/map
-/map_metadata
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode list | grep map
-/map_server
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun tf tf_monitor
-
-
-
-RESULTS: for all Frames
-
-Frames:
-
-All Broadcasters:
-
-
-
-RESULTS: for all Frames
-
-Frames:
-Frame: base_footprint published by unknown_publisher Average Delay: 0.000865516 Max Delay: 0.00168521
-Frame: laser_link published by unknown_publisher Average Delay: -0.0492723 Max Delay: 0
-
-All Broadcasters:
-Node: unknown_publisher 77.7761 Hz, Average Delay: -0.0134596 Max Delay: 0.00168521
-
-<launch>
-
-  <!-- TF -->
-  <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
         args="0 0 0.2 0 0 0 base_footprint laser_link 50"/>
 
   <!-- map_server -->
@@ -288,7 +199,6 @@ Node: unknown_publisher 77.7761 Hz, Average Delay: -0.0134596 Max Delay: 0.00168
   </node>
   
 </launch>
-
 
 ubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode | grep move_base
 ubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode list | grep move_base
