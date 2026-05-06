@@ -199,44 +199,24 @@ rviz
   </node>
   
 </launch>
-cat > ~/catkin_ws/src/my_robot/config/global_costmap.yaml << 'EOF'
-global_costmap:
-  global_frame: map
-  robot_base_frame: base_footprint
-  update_frequency: 1.0
-  publish_frequency: 0.5
-  static_map: true
-  plugins:
-    - {name: static_layer, type: "costmap_2d::StaticLayer"}
-    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
-EOF
 
-cat > ~/catkin_ws/src/my_robot/config/local_costmap.yaml << 'EOF'
-local_costmap:
-  global_frame: odom
-  robot_base_frame: base_footprint
-  update_frequency: 5.0
-  publish_frequency: 2.0
-  static_map: false
-  rolling_window: true
-  width: 4.0
-  height: 4.0
-  resolution: 0.05
-  plugins:
-    - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
-    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
-EOF
-
-cat > ~/catkin_ws/src/my_robot/config/costmap_common.yaml << 'EOF'
-obstacle_range: 2.5
-raytrace_range: 3.0
-robot_radius: 0.20
-inflation_radius: 0.3
-observation_sources: laser_scan_sensor
-laser_scan_sensor:
-  sensor_frame: laser_link
-  data_type: LaserScan
-  topic: /scan
-  marking: true
-  clearing: true
+cat > ~/catkin_ws/src/my_robot/config/base_local_planner.yaml << 'EOF'
+TrajectoryPlannerROS:
+  max_vel_x: 0.3
+  min_vel_x: 0.05
+  max_vel_theta: 0.5
+  min_in_place_vel_theta: 0.3
+  acc_lim_x: 0.5
+  acc_lim_theta: 0.5
+  holonomic_robot: false
+  sim_time: 2.0
+  vx_samples: 10
+  vtheta_samples: 20
+  goal_distance_bias: 24.0
+  path_distance_bias: 32.0
+  occdist_scale: 0.1
+  heading_lookahead: 0.325
+  heading_scoring: false
+  dwa: true
+  meter_scoring: true
 EOF
