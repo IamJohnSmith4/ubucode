@@ -247,3 +247,11 @@ TrajectoryPlannerROS:
   holonomic_robot: false
   sim_time: 1.5
 EOF
+
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /rosout | grep move_base
+^CException ignored in: <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'>
+BrokenPipeError: [Errno 32] Broken pipe
+
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /move_base/global_costmap/costmap --noarr
+WARNING: topic [/move_base/global_costmap/costmap] does not appear to be published yet
+
