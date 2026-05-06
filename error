@@ -202,4 +202,76 @@ rviz
     <param name="ymax"           value="50.0"/>
   </node>
 </launch>
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun list | grep map
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /scan --noarr
+^Cubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode info /slam_gmapping
+--------------------------------------------------------------------------------
+Node [/slam_gmapping]
+Publications: 
+ * /map [nav_msgs/OccupancyGrid]
+ * /map_metadata [nav_msgs/MapMetaData]
+ * /rosout [rosgraph_msgs/Log]
+ * /slam_gmapping/entropy [std_msgs/Float64]
+ * /tf [tf2_msgs/TFMessage]
+
+Subscriptions: 
+ * /scan [sensor_msgs/LaserScan]
+ * /tf [tf2_msgs/TFMessage]
+ * /tf_static [tf2_msgs/TFMessage]
+
+Services: 
+ * /dynamic_map
+ * /slam_gmapping/get_loggers
+ * /slam_gmapping/set_logger_level
+
+
+contacting node http://ubutu2004-OEM-Default-string000:46547/ ...
+Pid: 7517
+Connections:
+ * topic: /rosout
+    * to: /rosout
+    * direction: outbound (47099 - 127.0.0.1:42750) [17]
+    * transport: TCPROS
+ * topic: /tf
+    * to: /slam_gmapping
+    * direction: outbound
+    * transport: INTRAPROCESS
+ * topic: /tf
+    * to: /laser_scan_matcher
+    * direction: outbound (47099 - 127.0.0.1:42766) [11]
+    * transport: TCPROS
+ * topic: /tf
+    * to: /rviz_1778054033858927521
+    * direction: outbound (47099 - 127.0.0.1:56168) [15]
+    * transport: TCPROS
+ * topic: /map
+    * to: /rviz_1778054033858927521
+    * direction: outbound (47099 - 127.0.0.1:60166) [16]
+    * transport: TCPROS
+ * topic: /tf
+    * to: /slam_gmapping (http://ubutu2004-OEM-Default-string000:46547/)
+    * direction: inbound
+    * transport: INTRAPROCESS
+ * topic: /tf
+    * to: /base_footprint_to_base (http://ubutu2004-OEM-Default-string000:35349/)
+    * direction: inbound (49290 - ubutu2004-OEM-Default-string000:37261) [13]
+    * transport: TCPROS
+ * topic: /tf
+    * to: /base_to_laser (http://ubutu2004-OEM-Default-string000:46205/)
+    * direction: inbound (43076 - ubutu2004-OEM-Default-string000:50265) [18]
+    * transport: TCPROS
+ * topic: /tf
+    * to: /laser_scan_matcher (http://ubutu2004-OEM-Default-string000:36769/)
+    * direction: inbound (55800 - ubutu2004-OEM-Default-string000:53029) [19]
+    * transport: TCPROS
+ * topic: /scan
+    * to: /laser_node (http://ubutu2004-OEM-Default-string000:37055/)
+    * direction: inbound (57328 - ubutu2004-OEM-Default-string000:42607) [10]
+    * transport: TCPROS
+
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosservice call /dynamic_map
+ERROR: service [/dynamic_map] responded with an error: b''
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun list | grep -i scan
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun list | grep -i laser
+ubutu2004@ubutu2004-OEM-Default-string000:~$ 
 
