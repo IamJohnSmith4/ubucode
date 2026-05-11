@@ -76,7 +76,7 @@ class OdomRobot:
         rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.amcl_callback)
 
         self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1,  min_val=-0.4, max_val=0.4)
-        self.pid_rotate   = PID(kp=1.0, ki=0.01,  kd=0.1,  min_val=-0.5, max_val=0.5)
+        self.pid_rotate   = PID(kp=1.0, ki=0.01,  kd=0.1,  min_val=-0.3, max_val=0.3)
 
         # Wait for odom
         rospy.loginfo("Waiting for odom data...")
@@ -218,7 +218,7 @@ class OdomRobot:
         start_x, start_y = self.x, self.y
         target_yaw = self.yaw
         rate = rospy.Rate(20)
-        LINEAR_SPEED = 0.50
+        LINEAR_SPEED = 0.10
         rospy.loginfo(f"bias = {bias}")
 
         current_linear_speed = 0.05
@@ -280,7 +280,7 @@ class OdomRobot:
         global current_progress
         l, h, r, z = 0.04, 0.02, 0.01, 0.00
         paths = {
-            
+
             (1, 2):  [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 10.0, l), ("move", 5.2, r), ("rotate", 90), ("move", 1.0)],
             (1, 3):  [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 10.0, l), ("move", 10.0, h), ("move", 7.2, r), ("rotate", 90), ("move", 1.0)],
            
