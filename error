@@ -206,9 +206,9 @@ rviz
     <param name="ymax"           value="50.0"/>
   </node>
 </launch>
-0:~$ rostopic hz /odom
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic hz /odom
 WARNING: topic [/odom] does not appear to be published yet
-^[[A^[[A^[[B^CTraceback (most recent call last):
+^CTraceback (most recent call last):
   File "/opt/ros/noetic/bin/rostopic", line 35, in <module>
     rostopic.rostopicmain()
   File "/opt/ros/noetic/lib/python3/dist-packages/rostopic/__init__.py", line 2132, in rostopicmain
@@ -223,77 +223,28 @@ WARNING: topic [/odom] does not appear to be published yet
     raise ValueError("topic name is not a non-empty string")
 ValueError: topic name is not a non-empty string
 ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun tf tf_echo odom base_link
-Failure at 1778481439.978316332
-Exception thrown:Could not find a connection between 'odom' and 'base_link' because they are not part of the same tree.Tf has two or more unconnected trees.
-The current list of frames is:
-Frame odom exists with parent map.
-Frame laser_link exists with parent base_link.
-
-Failure at 1778481439.978529412
-Exception thrown:Could not find a connection between 'odom' and 'base_link' because they are not part of the same tree.Tf has two or more unconnected trees.
-The current list of frames is:
-Frame odom exists with parent map.
-Frame laser_link exists with parent base_link.
-
-Failure at 1778481440.949999540
-Exception thrown:Could not find a connection between 'odom' and 'base_link' because they are not part of the same tree.Tf has two or more unconnected trees.
-The current list of frames is:
-Frame odom exists with parent map.
-Frame laser_link exists with parent base_link.
-
-Failure at 1778481441.949867477
-Exception thrown:Could not find a connection between 'odom' and 'base_link' because they are not part of the same tree.Tf has two or more unconnected trees.
-The current list of frames is:
-Frame odom exists with parent map.
-Frame laser_link exists with parent base_link.
-
-^Cubutu2004@ubutu2004-OEM-Default-string000:~$ rosnode info /laser_scan_matcher
---------------------------------------------------------------------------------
-Node [/laser_scan_matcher]
-Publications: 
- * /pose2D [geometry_msgs/Pose2D]
- * /rosout [rosgraph_msgs/Log]
- * /tf [tf2_msgs/TFMessage]
-
-Subscriptions: 
- * /scan [sensor_msgs/LaserScan]
- * /tf [tf2_msgs/TFMessage]
- * /tf_static [tf2_msgs/TFMessage]
-
-Services: 
- * /laser_scan_matcher/get_loggers
- * /laser_scan_matcher/set_logger_level
-
-
-contacting node http://ubutu2004-OEM-Default-string000:39517/ ...
-Pid: 5497
-Connections:
- * topic: /rosout
-    * to: /rosout
-    * direction: outbound (48973 - 127.0.0.1:49992) [15]
-    * transport: TCPROS
- * topic: /tf
-    * to: /laser_scan_matcher
-    * direction: outbound
-    * transport: INTRAPROCESS
- * topic: /tf
-    * to: /slam_gmapping
-    * direction: outbound (48973 - 127.0.0.1:50004) [17]
-    * transport: TCPROS
- * topic: /tf
-    * to: /laser_scan_matcher (http://ubutu2004-OEM-Default-string000:39517/)
-    * direction: inbound
-    * transport: INTRAPROCESS
- * topic: /tf
-    * to: /base_to_laser (http://ubutu2004-OEM-Default-string000:35929/)
-    * direction: inbound (33728 - ubutu2004-OEM-Default-string000:59551) [14]
-    * transport: TCPROS
- * topic: /tf
-    * to: /slam_gmapping (http://ubutu2004-OEM-Default-string000:40723/)
-    * direction: inbound (45812 - ubutu2004-OEM-Default-string000:54235) [10]
-    * transport: TCPROS
- * topic: /scan
-    * to: /laser_node (http://ubutu2004-OEM-Default-string000:37873/)
-    * direction: inbound (52876 - ubutu2004-OEM-Default-string000:55439) [16]
-    * transport: TCPROS
-
+At time 1778481737.896
+- Translation: [-0.000, -0.000, 0.000]
+- Rotation: in Quaternion [0.000, 0.000, 0.000, 1.000]
+            in RPY (radian) [0.000, -0.000, 0.001]
+            in RPY (degree) [0.000, -0.000, 0.031]
+At time 1778481738.498
+- Translation: [0.000, 0.000, 0.000]
+- Rotation: in Quaternion [0.000, 0.000, -0.001, 1.000]
+            in RPY (radian) [0.000, 0.000, -0.002]
+            in RPY (degree) [0.000, 0.000, -0.090]
+At time 1778481739.583
+- Translation: [0.000, 0.000, 0.000]
+- Rotation: in Quaternion [0.000, 0.000, -0.000, 1.000]
+            in RPY (radian) [0.000, 0.000, -0.000]
+            in RPY (degree) [0.000, 0.000, -0.009]
+At time 1778481740.578
+- Translation: [0.000, 0.000, 0.000]
+- Rotation: in Quaternion [0.000, 0.000, -0.001, 1.000]
+            in RPY (radian) [0.000, 0.000, -0.002]
+            in RPY (degree) [0.000, 0.000, -0.117]
+At time 1778481741.574
+- Translation: [-0.001, 0.000, 0.000]
+- Rotation: in Quaternion [0.000, 0.000, -0.000, 1.000]
+            in RPY (radian) [0.000, 0.000, -0.001]
+            in RPY (degree) [0.000, 0.000, -0.044]
