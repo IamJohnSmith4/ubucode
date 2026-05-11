@@ -67,36 +67,22 @@ rosrun teleop_twist_keyboard teleop_twist_keyboard.py \
     <param name="ymax"           value="50.0"/>
   </node>
 
-^Cubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun tf tf_echo base_footprint laser_link
-At time 1778476643.889
-- Translation: [0.000, 0.000, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.000, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.000]
-            in RPY (degree) [0.000, -0.000, 0.000]
-At time 1778476644.593
-- Translation: [0.000, 0.000, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.000, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.000]
-            in RPY (degree) [0.000, -0.000, 0.000]
-At time 1778476645.566
-- Translation: [0.000, 0.000, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.000, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.000]
-            in RPY (degree) [0.000, -0.000, 0.000]
-At time 1778476646.571
-- Translation: [0.000, 0.000, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.000, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.000]
-            in RPY (degree) [0.000, -0.000, 0.000]
-At time 1778476647.576
-- Translation: [0.000, 0.000, 0.200]
-- Rotation: in Quaternion [0.000, 0.000, 0.000, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.000]
-            in RPY (degree) [0.000, -0.000, 0.000]
-^Cubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic list | grep odom
-/mobile_base/commands/reset_odometry
-/odom
+<!-- Kobuki base driver - publishes odom → base_footprint -->
+  <node pkg="kobuki_node" type="kobuki_node" name="mobile_base"
+        output="screen" respawn="true">
+    <param name="device_port" value="/dev/ttyUSB0"/>
+    <rosparam file="$(find kobuki_node)/param/base.yaml" command="load"/>
+  </node>
 
+  <!-- base_footprint → base_link -->
+  <node pkg="tf" type="static_transform_publisher"
+        name="base_footprint_to_base_link"
+        args="0 0 0 0 0 0 base_footprint base_link 50"/>
+
+  <!-- base_link → laser_link -->
+  <node pkg="tf" type="static_transform_publisher"
+        name="base_to_laser"
+        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
 
 
 
