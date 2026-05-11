@@ -286,13 +286,16 @@ roscore
 sudo chmod 666 /dev/ttyUSB1
 rosrun talker talker _serial_port:=/dev/ttyUSB1
 
-# Terminal 3 - static TF FIRST before LSM!
+# Terminal 3 - static TF base_link → laser_link
 rosrun tf static_transform_publisher 0 0 0.2 0 0 0 base_link laser_link 50
 
-# Terminal 4 - NOW start LSM
+# Terminal 4 - static TF odom → base_link (fake odom to bootstrap LSM)
+rosrun tf static_transform_publisher 0 0 0 0 0 0 odom base_link 100
+
+# Terminal 5 - NOW start LSM (it will take over odom→base_link)
 rosrun laser_scan_matcher laser_scan_matcher_node \
     _base_frame:=base_link \
     _odom_frame:=odom \
+    _fixed_frame:=odom \
     _publish_tf:=true \
     _publish_odom:=true
-
