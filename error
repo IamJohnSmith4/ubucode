@@ -206,19 +206,57 @@ rviz
     <param name="ymax"           value="50.0"/>
   </node>
 </launch>
-rostopic list
-/map
-/map_metadata
-/rosout
-/rosout_agg
-/scan
-/slam_gmapping/entropy
-/startOrStop
-/tf
-/tf_static
 
-At time 1778481741.574
-- Translation: [-0.001, 0.000, 0.000]
-- Rotation: in Quaternion [0.000, 0.000, -0.000, 1.000]
-            in RPY (radian) [0.000, 0.000, -0.001]
-            in RPY (degree) [0.000, 0.000, -0.044]
+#!/bin/bash
+
+echo "=== Starting SLAM System ==="
+
+# Step 1 - Set permissions
+echo "[1/5] Setting USB permissions..."
+sudo chmod 666 /dev/ttyUSB0
+sudo chmod 666 /dev/ttyUSB1
+
+# Step 2 - Start laser
+echo "[2/5] Starting laser..."
+gnome-terminal -- bash -c "rosrun talker talker _serial_port:=/dev/ttyUSB1; exec bash"
+sleep 3
+
+# Step 3 - Verify laser is publishing
+echo "[3/5] Checking laser..."
+timeout 10 rostopic hz /scan -r 1 &
+sleep 5
+
+# Step 4 - Start kobuki
+echo "[4/5] Starting Kobuki..."
+gnome-terminal -- bash -c "rosrun kobuki_driver simple_keyop; exec bash"
+sleep 3
+
+# Step 5 - Start SLAM
+echo "[5/5] Starting SLAM..."
+gnome-terminal -- bash -c "roslaunch my_robot slam.launch; exec bash"
+sleep 8
+
+# Step 6 - Verify TF tree
+echo "=== Checking TF Tree ==="
+rosrun tf tf_echo odom base_link &
+sleep 3
+kill %1
+
+# Step 7 - Start RViz
+echo "=== Opening RViz ==="
+gnome-terminal -- bash -c "rosrun rviz rviz; exec bash"
+sleep 2
+
+# Step 8 - Start teleop
+echo "=== Starting Teleop ==="
+gnome-terminal -- bash -c "rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/commands/velocity _speed:=0.15 _turn:=0.2; exec bash"
+
+echo "=== ALL DONE ==="
+
+chmod +x ~/start_slam.sh
+
+# Terminal 1
+roscore
+
+# Terminal 2 - wait for roscore then:
+~/start_slam.sh
