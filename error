@@ -1,3 +1,6 @@
+
+ERROR: cannot launch node of type [kobuki_node/kobuki_node]: Cannot locate node of type [kobuki_node] in package [kobuki_node]. Make sure file exists in package path and permission is set to executable (chmod +x)
+
 //run
 # Terminal 1
 roscore
