@@ -206,43 +206,17 @@ rviz
     <param name="ymax"           value="50.0"/>
   </node>
 </launch>
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic hz /odom
-WARNING: topic [/odom] does not appear to be published yet
-^CTraceback (most recent call last):
-  File "/opt/ros/noetic/bin/rostopic", line 35, in <module>
-    rostopic.rostopicmain()
-  File "/opt/ros/noetic/lib/python3/dist-packages/rostopic/__init__.py", line 2132, in rostopicmain
-    _rostopic_cmd_hz(argv)
-  File "/opt/ros/noetic/lib/python3/dist-packages/rostopic/__init__.py", line 1523, in _rostopic_cmd_hz
-    _rostopic_hz(topics, window_size=window_size, filter_expr=filter_expr,
-  File "/opt/ros/noetic/lib/python3/dist-packages/rostopic/__init__.py", line 315, in _rostopic_hz
-    rospy.Subscriber(real_topic, rospy.AnyMsg, rt.callback_hz, callback_args=topic, tcp_nodelay=tcp_nodelay)
-  File "/opt/ros/noetic/lib/python3/dist-packages/rospy/topics.py", line 563, in __init__
-    super(Subscriber, self).__init__(name, data_class, Registration.SUB)
-  File "/opt/ros/noetic/lib/python3/dist-packages/rospy/topics.py", line 131, in __init__
-    raise ValueError("topic name is not a non-empty string")
-ValueError: topic name is not a non-empty string
-ubutu2004@ubutu2004-OEM-Default-string000:~$ rosrun tf tf_echo odom base_link
-At time 1778481737.896
-- Translation: [-0.000, -0.000, 0.000]
-- Rotation: in Quaternion [0.000, 0.000, 0.000, 1.000]
-            in RPY (radian) [0.000, -0.000, 0.001]
-            in RPY (degree) [0.000, -0.000, 0.031]
-At time 1778481738.498
-- Translation: [0.000, 0.000, 0.000]
-- Rotation: in Quaternion [0.000, 0.000, -0.001, 1.000]
-            in RPY (radian) [0.000, 0.000, -0.002]
-            in RPY (degree) [0.000, 0.000, -0.090]
-At time 1778481739.583
-- Translation: [0.000, 0.000, 0.000]
-- Rotation: in Quaternion [0.000, 0.000, -0.000, 1.000]
-            in RPY (radian) [0.000, 0.000, -0.000]
-            in RPY (degree) [0.000, 0.000, -0.009]
-At time 1778481740.578
-- Translation: [0.000, 0.000, 0.000]
-- Rotation: in Quaternion [0.000, 0.000, -0.001, 1.000]
-            in RPY (radian) [0.000, 0.000, -0.002]
-            in RPY (degree) [0.000, 0.000, -0.117]
+rostopic list
+/map
+/map_metadata
+/rosout
+/rosout_agg
+/scan
+/slam_gmapping/entropy
+/startOrStop
+/tf
+/tf_static
+
 At time 1778481741.574
 - Translation: [-0.001, 0.000, 0.000]
 - Rotation: in Quaternion [0.000, 0.000, -0.000, 1.000]
