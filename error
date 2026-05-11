@@ -206,49 +206,74 @@ rviz
     <param name="ymax"           value="50.0"/>
   </node>
 </launch>
-u2004@ubutu2004-OEM-Default-string000:~$ ~/start_slam.sh
-=== Starting SLAM System ===
-[1/5] Setting USB permissions...
-[sudo] password for ubutu2004: 
-[2/5] Starting laser...
-[3/5] Checking laser...
-Usage: rostopic hz [options] /topic_0 [/topic_1 [topic_2 [..]]]
-
-rostopic: error: no such option: -r
-[4/5] Starting Kobuki...
-[5/5] Starting SLAM...
-=== Checking TF Tree ===
-Failure at 1778485370.196066275
-Exception thrown:"odom" passed to lookupTransform argument target_frame does not exist. 
-The current list of frames is:
-Frame laser_link exists with parent base_link.
-
-Failure at 1778485370.196372355
-Exception thrown:"odom" passed to lookupTransform argument target_frame does not exist. 
-
-The current list of frames is:
-Frame laser_link exists with parent base_link.
-
-Failure at 1778485371.165582252
-Exception thrown:"odom" passed to lookupTransform argument target_frame does not exist. 
-The current list of frames is:
-Frame laser_link exists with parent base_link.
-
-=== Opening RViz ===
-Failure at 1778485372.165478471
-Exception thrown:"odom" passed to lookupTransform argument target_frame does not exist. 
-The current list of frames is:
-Frame laser_link exists with parent base_link.
-
-Failure at 1778485373.165451438
-Exception thrown:Could not find a connection between 'odom' and 'base_link' because they are not part of the same tree.Tf has two or more unconnected trees.
-The current list of frames is:
-Frame laser_link exists with parent base_link.
-Frame odom exists with parent map.
-
 
 # Terminal 1
 roscore
 
 # Terminal 2 - wait for roscore then:
 ~/start_slam.sh
+
+
+# Kill everything, then run JUST these 3 things:
+
+# Terminal 1
+roscore
+
+# Terminal 2
+sudo chmod 666 /dev/ttyUSB1
+rosrun talker talker _serial_port:=/dev/ttyUSB1
+
+# Terminal 3 - run LSM manually and watch output
+rosrun laser_scan_matcher laser_scan_matcher_node \
+    _base_frame:=base_link \
+    _odom_frame:=odom \
+    _publish_tf:=true \
+    _publish_odom:=true
+
+#!/bin/bash
+
+echo "=== Starting SLAM System ==="
+
+# Permissions
+sudo chmod 666 /dev/ttyUSB0
+sudo chmod 666 /dev/ttyUSB1
+
+# Start laser
+echo "[1] Starting laser..."
+gnome-terminal -- bash -c "rosrun talker talker _serial_port:=/dev/ttyUSB1; exec bash"
+
+# Wait for laser
+echo "[2] Waiting for laser scan..."
+until rostopic hz /scan --window=5 2>/dev/null | grep -q "average rate"; do
+    echo "   waiting for /scan..."
+    sleep 2
+done
+echo "   /scan OK!"
+
+# Start Kobuki
+echo "[3] Starting Kobuki..."
+gnome-terminal -- bash -c "rosrun kobuki_driver simple_keyop; exec bash"
+sleep 3
+
+# Start SLAM
+echo "[4] Starting SLAM..."
+gnome-terminal -- bash -c "roslaunch my_robot slam.launch; exec bash"
+
+# Wait for LSM to publish odom→base_link
+echo "[5] Waiting for odom→base_link..."
+until rosrun tf tf_echo odom base_link 2>&1 | grep -q "Translation"; do
+    echo "   waiting for TF..."
+    sleep 2
+done
+echo "   TF OK!"
+
+# Open RViz
+echo "[6] Opening RViz..."
+gnome-terminal -- bash -c "rosrun rviz rviz; exec bash"
+sleep 2
+
+# Teleop
+echo "[7] Starting teleop..."
+gnome-terminal -- bash -c "rosrun teleop_twist_keyboard teleop_twist_keyboard.py cmd_vel:=/mobile_base/commands/velocity _speed:=0.15 _turn:=0.2; exec bash"
+
+echo "=== ALL SYSTEMS GO ==="
