@@ -298,4 +298,41 @@ rosrun laser_scan_matcher laser_scan_matcher_node \
     _odom_frame:=odom \
     _fixed_frame:=odom \
     _publish_tf:=true \
-    _publish_odom:=true
+    _publish_odom:=true \
+    __log:=/tmp/lsm.log
+
+
+$ rosrun laser_scan_matcher laser_scan_matcher_node     _base_frame:=base_link     _odom_frame:=odom     _fixed_frame:=odom     _publish_tf:=true     _publish_odom:=true     _log:=tmp/slm.log
+[INFO] [1778487375.840135223]: Starting LaserScanMatcher
+Error in XmlRpcClient::writeRequest: write error (Connection refused).
+Error in XmlRpcClient::writeRequest: write error (Connection refused).
+Error in XmlRpcClient::writeRequest: write error (Connection refused).
+[WARN] [1778487376.203924712]: Could not get base to fixed frame transform, Lookup would require extrapolation at time 1778487376.010700941, but only time 1778487376.228223801 is in the buffer, when looking up transform from frame [base_link] to frame [odom]
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1778487376.204482264]: Error in scan matching
+[WARN] [1778487376.324692727]: Could not get base to fixed frame transform, Lookup would require extrapolation 0.126558768s into the past.  Requested time 1778487376.101665020 but the earliest data is at time 1778487376.228223801, when looking up transform from frame [base_link] to frame [odom]
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1778487376.324924062]: Error in scan matching
+[WARN] [1778487376.426493244]: Could not get base to fixed frame transform, Lookup would require extrapolation 0.005424116s into the past.  Requested time 1778487376.222799778 but the earliest data is at time 1778487376.228223801, when looking up transform from frame [base_link] to frame [odom]
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1778487376.426684840]: Error in scan matching
+[WARN] [1778487376.528090524]: Could not get base to fixed frame transform, Lookup would require extrapolation 0.005424116s into the past.  Requested time 1778487376.222799778 but the earliest data is at time 1778487376.228223801, when looking up transform from frame [odom] to frame [base_link]
+:err: Valid: 0/360 invalid: 360.
+[WARN] [1778487376.528358201]: Error in scan matching
+
+ rostopic echo /scan -n 1
+header: 
+  seq: 3469
+  stamp: 
+    secs: 1778487658
+    nsecs: 549561837
+  frame_id: "laser_link"
+angle_min: 0.0
+angle_max: 6.2831854820251465
+angle_increment: 0.017501909285783768
+time_increment: 2.5324754915345693e-07
+scan_time: 9.091586980503052e-05
+range_min: 0.15000000596046448
+range_max: 8.0
+ranges: [inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf, inf
+
