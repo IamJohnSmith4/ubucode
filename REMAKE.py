@@ -5,22 +5,25 @@ import signal
 import sys
 import threading
 import json, os
+import numpy as np
+
 from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import LaserScan
 from tf.transformations import euler_from_quaternion
+import tf
 from flask import Flask, request, jsonify
 
 # ==================================================
 # GLOBAL SETTINGS & STATE
 # ==================================================
-is_navigating = False
+is_navigating    = False
 current_location = 1
 current_progress = 0
-POSITION_FILE = "/tmp/robot_last_position.json"
 velocity_publisher = None
 
+
 def signal_handler(sig, frame):
-    """จัดการเมื่อกด Ctrl+C ให้หยุดหุ่นยนต์ทันที"""
     print("\n[INFO] Detecting Ctrl+C... Stopping Robot and Exiting.")
     if velocity_publisher:
         stop_cmd = Twist()
@@ -42,8 +45,8 @@ class PID:
 
     def compute(self, error, dt):
         self.integral += error * dt
-        derivative = (error - self.last_error) / dt
-        output = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
+        derivative    = (error - self.last_error) / dt
+        output        = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
         self.last_error = error
         return max(min(output, self.max_val), self.min_val)
 
@@ -59,24 +62,27 @@ class OdomRobot:
 
         # --- Odometry State ---
         self.raw_x, self.raw_y, self.raw_yaw = 0.0, 0.0, 0.0
-        self.x, self.y, self.yaw = 0.0, 0.0, 0.0
+        self.x, self.y, self.yaw             = 0.0, 0.0, 0.0
         self.offset_x, self.offset_y, self.offset_yaw = 0.0, 0.0, 0.0
 
-        # --- AMCL State ---
-        # AMCL ให้ตำแหน่งใน frame "map" ซึ่งแม่นกว่า odom เพราะใช้ LiDAR แก้ drift
-        self.amcl_x = 0.0
-        self.amcl_y = 0.0
-        self.amcl_yaw = 0.0
-        self.amcl_covariance = 1.0      # ค่าความไม่แน่นอน (ยิ่งสูง = ยิ่งไม่แน่ใจ)
-        self.amcl_ready = False          # AMCL localize ตัวเองสำเร็จหรือยัง
-        self.amcl_lock = threading.Lock()
+        # --- gmapping TF ---
+        # gmapping publish transform: map → odom → base_link
+        # ใช้ tf listener ดึง pose ของ base_link ใน frame map
+        self.tf_listener = tf.TransformListener()
+
+        # --- LiDAR / Wall Avoidance ---
+        self.scan_data   = None
+        self.scan_lock   = threading.Lock()
+        self.WALL_OFFSET = 0.50   # ระยะที่ต้องการห่างกำแพง (เมตร)
+        self.WALL_GAIN   = 1.2    # ความไวในการแก้ (เพิ่ม=แก้เร็ว, ลด=แก้ช้า/ลด oscillate)
 
         # --- Subscribers ---
-        rospy.Subscriber("/odom", Odometry, self.odom_callback)
-        rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.amcl_callback)
+        rospy.Subscriber("/odom",  Odometry, self.odom_callback)
+        rospy.Subscriber("/scan",  LaserScan, self.scan_callback)
 
-        self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1,  min_val=-0.4, max_val=0.4)
-        self.pid_rotate   = PID(kp=1.0, ki=0.01,  kd=0.1,  min_val=-0.3, max_val=0.3)
+        # --- PID ---
+        self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1, min_val=-0.4, max_val=0.4)
+        self.pid_rotate   = PID(kp=1.0, ki=0.01,  kd=0.1, min_val=-0.3, max_val=0.3)
 
         # Wait for odom
         rospy.loginfo("Waiting for odom data...")
@@ -95,9 +101,6 @@ class OdomRobot:
         is_navigating = False
         rospy.loginfo("=== ROBOT READY (HOME=0,0,0) ===")
 
-        # --- Wait for AMCL (non-blocking, warn if unavailable) ---
-        self._wait_for_amcl(timeout=10.0)
-
     # --------------------------------------------------
     # CALLBACKS
     # --------------------------------------------------
@@ -113,79 +116,81 @@ class OdomRobot:
         self.y   = self.raw_y - self.offset_y
         self.yaw = math.atan2(math.sin(diff_yaw), math.cos(diff_yaw))
 
-    def amcl_callback(self, msg):
-        """
-        รับ pose จาก AMCL (frame: map)
-        covariance[0] = xx, covariance[7] = yy  (ยิ่งต่ำยิ่งมั่นใจ)
-        """
-        with self.amcl_lock:
-            self.amcl_x = msg.pose.pose.position.x
-            self.amcl_y = msg.pose.pose.position.y
-            q = msg.pose.pose.orientation
-            (_, _, self.amcl_yaw) = euler_from_quaternion([q.x, q.y, q.z, q.w])
-
-            # ใช้ค่าเฉลี่ย covariance แกน x, y เป็นตัวบอกความมั่นใจ
-            cov = msg.pose.covariance
-            self.amcl_covariance = (cov[0] + cov[7]) / 2.0
-
-            # ถือว่า AMCL localize ได้แล้วเมื่อ covariance ต่ำกว่า threshold
-            if self.amcl_covariance < 0.05:
-                self.amcl_ready = True
+    def scan_callback(self, msg):
+        with self.scan_lock:
+            self.scan_data = msg
 
     # --------------------------------------------------
-    # AMCL HELPERS
+    # WALL AVOIDANCE (LiDAR)
     # --------------------------------------------------
-    def _wait_for_amcl(self, timeout=10.0):
-        """รอ AMCL topic สักพัก ถ้าไม่มีก็เดินหน้าต่อได้"""
-        rospy.loginfo("Waiting for /amcl_pose (%.0fs timeout)..." % timeout)
-        try:
-            rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped, timeout=timeout)
-            rospy.loginfo("[AMCL] Topic found. AMCL is running.")
-        except rospy.ROSException:
-            rospy.logwarn("[AMCL] /amcl_pose not received within %.0fs. "
-                          "Running with odometry only." % timeout)
-
-    def set_initial_pose(self, x, y, yaw_deg):
+    def get_wall_bias(self):
         """
-        ส่ง initial pose ให้ AMCL เพื่อให้ localize เร็วขึ้น
-        เรียกผ่าน API: POST /amcl/set-pose  {"x":0,"y":0,"yaw":0}
+        วัดระยะห่างกำแพงซ้าย/ขวาจาก LiDAR แล้วคืน angular bias
+        เพื่อรักษาระยะ WALL_OFFSET จากกำแพงทั้งสองข้าง
+
+          bias > 0 → เลี้ยวซ้าย  (หนีกำแพงขวา)
+          bias < 0 → เลี้ยวขวา  (หนีกำแพงซ้าย)
+          bias = 0 → ปลอดภัย ไม่ต้องปรับ
         """
-        pub = rospy.Publisher("/initialpose",
-                              PoseWithCovarianceStamped,
-                              queue_size=1, latch=True)
-        rospy.sleep(0.5)   # ให้ publisher register ก่อน
+        with self.scan_lock:
+            if self.scan_data is None:
+                return 0.0
+            ranges   = np.array(self.scan_data.ranges, dtype=float)
+            ang_min  = self.scan_data.angle_min
+            ang_inc  = self.scan_data.angle_increment
 
-        pose_msg = PoseWithCovarianceStamped()
-        pose_msg.header.frame_id = "map"
-        pose_msg.header.stamp = rospy.Time.now()
+        n      = len(ranges)
+        angles = ang_min + np.arange(n) * ang_inc
 
-        yaw_rad = math.radians(yaw_deg)
-        pose_msg.pose.pose.position.x = x
-        pose_msg.pose.pose.position.y = y
-        pose_msg.pose.pose.orientation.z = math.sin(yaw_rad / 2.0)
-        pose_msg.pose.pose.orientation.w = math.cos(yaw_rad / 2.0)
+        # กรองค่า invalid (0, inf, nan)
+        ranges = np.where((ranges < 0.05) | np.isinf(ranges), np.nan, ranges)
 
-        # covariance เริ่มต้น (ความไม่แน่นอนพอสมควร)
-        cov = [0.0] * 36
-        cov[0]  = 0.25    # xx
-        cov[7]  = 0.25    # yy
-        cov[35] = 0.068   # yaw-yaw  (~15 deg)
-        pose_msg.pose.covariance = cov
+        # ฝั่งซ้าย  30°–80°  |  ฝั่งขวา  -80°–-30°
+        # (ปรับมุมถ้า LiDAR ติดตั้งหันต่างออกไป)
+        left_mask  = (angles >  math.radians(30)) & (angles <  math.radians(80))
+        right_mask = (angles > -math.radians(80)) & (angles < -math.radians(30))
 
-        pub.publish(pose_msg)
-        rospy.loginfo(f"[AMCL] Initial pose set → x={x:.2f}, y={y:.2f}, yaw={yaw_deg}°")
+        left_dist  = float(np.nanmin(ranges[left_mask]))  if left_mask.any()  else 9.9
+        right_dist = float(np.nanmin(ranges[right_mask])) if right_mask.any() else 9.9
 
+        S = self.WALL_OFFSET
+        G = self.WALL_GAIN
+
+        if left_dist < S and right_dist < S:
+            # ช่องแคบ → อยู่กลาง
+            bias = (left_dist - right_dist) * G * 0.5
+        elif left_dist < S:
+            # ใกล้กำแพงซ้าย → หักขวา
+            bias = -(S - left_dist) * G
+        elif right_dist < S:
+            # ใกล้กำแพงขวา → หักซ้าย
+            bias =  (S - right_dist) * G
+        else:
+            bias = 0.0
+
+        return float(np.clip(bias, -0.35, 0.35))
+
+    # --------------------------------------------------
+    # GMAPPING POSE (via tf)
+    # --------------------------------------------------
     def get_best_pose(self):
         """
-        คืนค่า pose ที่ดีที่สุดในขณะนั้น:
-        - ถ้า AMCL ready และ covariance ต่ำ  → ใช้ AMCL (แม่นกว่า)
-        - ถ้า AMCL ยังไม่ stable              → ใช้ Odom (เดิม)
+        ดึง pose ของ base_link ใน frame map จาก gmapping ผ่าน tf
+        ถ้า tf ยังไม่พร้อม fallback ใช้ odom
         คืนค่า (x, y, yaw, source)
         """
-        with self.amcl_lock:
-            if self.amcl_ready and self.amcl_covariance < 0.05:
-                return self.amcl_x, self.amcl_y, self.amcl_yaw, "amcl"
-        return self.x, self.y, self.yaw, "odom"
+        try:
+            self.tf_listener.waitForTransform(
+                "/map", "/base_link", rospy.Time(0), rospy.Duration(0.5))
+            (trans, rot) = self.tf_listener.lookupTransform(
+                "/map", "/base_link", rospy.Time(0))
+            (_, _, yaw) = euler_from_quaternion(rot)
+            return trans[0], trans[1], yaw, "gmapping"
+
+        except (tf.LookupException,
+                tf.ConnectivityException,
+                tf.ExtrapolationException):
+            return self.x, self.y, self.yaw, "odom"
 
     # --------------------------------------------------
     # RESET / HOME
@@ -208,21 +213,25 @@ class OdomRobot:
         self.rotate(math.radians(180))
         self.reset_home()
         current_location = 1
-        is_navigating = False
+        is_navigating    = False
         rospy.loginfo("--- Home Sequence Completed: Current Node is 1 ---")
 
     # --------------------------------------------------
     # MOTION PRIMITIVES
     # --------------------------------------------------
     def move_forward(self, distance, bias=0.0):
+        """
+        เดินตรงระยะ distance (เมตร)
+        bias: manual angular offset (ใช้ใน path เก่า หรือส่ง 0.0 ได้เลย)
+        wall_bias จาก LiDAR จะถูกรวมเข้าอัตโนมัติ
+        """
         start_x, start_y = self.x, self.y
-        target_yaw = self.yaw
-        rate = rospy.Rate(20)
-        LINEAR_SPEED = 0.10
-        rospy.loginfo(f"bias = {bias}")
+        target_yaw       = self.yaw
+        rate             = rospy.Rate(20)
+        LINEAR_SPEED     = 0.10
 
         current_linear_speed = 0.05
-        accel    = 0.008
+        accel      = 0.008
         min_speed  = 0.07
         decel_dist = 0.4
 
@@ -230,12 +239,13 @@ class OdomRobot:
         self.pid_straight.last_error = 0.0
 
         while not rospy.is_shutdown() and is_navigating:
-            traveled      = math.sqrt((self.x - start_x)**2 + (self.y - start_y)**2)
+            traveled       = math.sqrt((self.x - start_x)**2 + (self.y - start_y)**2)
             remaining_dist = distance - traveled
 
             if traveled >= distance:
                 break
 
+            # accel / decel
             if remaining_dist > decel_dist:
                 current_linear_speed = min(current_linear_speed + accel, LINEAR_SPEED)
             else:
@@ -245,9 +255,14 @@ class OdomRobot:
             error_yaw = math.atan2(math.sin(target_yaw - self.yaw),
                                    math.cos(target_yaw - self.yaw))
 
+            # รวม PID correction + manual bias + wall avoidance
+            wall_bias = self.get_wall_bias()
+
             twist = Twist()
             twist.linear.x  = current_linear_speed
-            twist.angular.z = self.pid_straight.compute(error_yaw, 0.05) + bias
+            twist.angular.z = (self.pid_straight.compute(error_yaw, 0.05)
+                               + bias
+                               + wall_bias)
             self.pub.publish(twist)
             rate.sleep()
 
@@ -278,22 +293,72 @@ class OdomRobot:
     # --------------------------------------------------
     def execute_path(self, start, target):
         global current_progress
-        l, h, r, z = 0.04, 0.02, 0.01, 0.00
+
+        # bias ถูกลบออกแล้ว — LiDAR จัดการระยะห่างกำแพงให้อัตโนมัติ
         paths = {
-
-            (1, 2):  [("rotate", -90), ("move", 5.8), ("rotate", 90), ("move", 10.0, l), ("move", 5.2, r), ("rotate", 90), ("move", 1.0)],
-            (1, 3):  [("rotate", -90), ("move", 5.8), ("rotate", 90), ("move", 10.0, l), ("move", 10.0, h), ("move", 7.2, r), ("rotate", 90), ("move", 1.0)],
-           
-            (2, 1):  [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 10.0, l), ("move", 5.2, z), ("rotate", -90), ("move", 5.8), ("rotate", -90)],
-            (2, 3):  [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 10.0, l), ("move", 2.5, r), ("rotate", 90), ("move", 1.0)],
-           
-            (3, 1):  [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 10.0, r), ("move", 10.0, r), ("move", 7.2, r), ("rotate", -90), ("move", 5.8), ("rotate", -90)],
-            (3, 2):  [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 10.0, r), ("move", 2.5, r), ("rotate", -90), ("move", 1.0)],
-
+            (1, 2): [
+                ("rotate", -90),
+                ("move",   5.8),
+                ("rotate", 90),
+                ("move",  10.0),
+                ("move",   5.2),
+                ("rotate", 90),
+                ("move",   1.0),
+            ],
+            (1, 3): [
+                ("rotate", -90),
+                ("move",   5.8),
+                ("rotate", 90),
+                ("move",  10.0),
+                ("move",  10.0),
+                ("move",   7.2),
+                ("rotate", 90),
+                ("move",   1.0),
+            ],
+            (2, 1): [
+                ("rotate", 180),
+                ("move",   1.0),
+                ("rotate", -90),
+                ("move",  10.0),
+                ("move",   5.2),
+                ("rotate", -90),
+                ("move",   5.8),
+                ("rotate", -90),
+            ],
+            (2, 3): [
+                ("rotate", 180),
+                ("move",   1.0),
+                ("rotate", 90),
+                ("move",  10.0),
+                ("move",   2.5),
+                ("rotate", 90),
+                ("move",   1.0),
+            ],
+            (3, 1): [
+                ("rotate", 180),
+                ("move",   1.0),
+                ("rotate", -90),
+                ("move",  10.0),
+                ("move",  10.0),
+                ("move",   7.2),
+                ("rotate", -90),
+                ("move",   5.8),
+                ("rotate", -90),
+            ],
+            (3, 2): [
+                ("rotate", 180),
+                ("move",   1.0),
+                ("rotate", -90),
+                ("move",  10.0),
+                ("move",   2.5),
+                ("rotate", -90),
+                ("move",   1.0),
+            ],
         }
 
         key = (start, target)
         current_progress = 0
+
         if key not in paths:
             rospy.logwarn(f"No path defined for ({start} → {target})")
             return False
@@ -310,17 +375,12 @@ class OdomRobot:
             action = cmd[0]
 
             if action == "move":
-                raw_dist = cmd[1]
-                dist = float(raw_dist[0]) if isinstance(raw_dist, (list, tuple)) else float(raw_dist)
-                bias = 0.0
-                if len(cmd) > 2:
-                    raw_bias = cmd[2]
-                    bias = float(raw_bias[0]) if isinstance(raw_bias, (list, tuple)) else float(raw_bias)
+                dist = float(cmd[1])
+                bias = float(cmd[2]) if len(cmd) > 2 else 0.0
                 self.move_forward(dist, bias)
 
             elif action == "rotate":
-                angle = cmd[1]
-                self.rotate(math.radians(angle))
+                self.rotate(math.radians(cmd[1]))
                 rospy.sleep(0.5)
 
             current_progress = (current_steps / total_steps) * 100
@@ -333,15 +393,16 @@ class OdomRobot:
 # ==================================================
 # FLASK API SERVER
 # ==================================================
-app = Flask(__name__)
+app      = Flask(__name__)
 my_robot = None
 
 
 @app.route('/command', methods=['POST'])
 def handle_command():
     global is_navigating, current_progress
-    data = request.json
-    start, target = data.get('start'), data.get('target')
+    data   = request.json
+    start  = data.get('start')
+    target = data.get('target')
 
     if is_navigating:
         return jsonify({"status": "error", "message": "Robot is busy"}), 400
@@ -349,9 +410,9 @@ def handle_command():
     def run_and_finish(s, t):
         global is_navigating, current_location, current_progress
         current_progress = 0
-        is_navigating = True
-        success = my_robot.execute_path(s, t)
-        is_navigating = False
+        is_navigating    = True
+        success          = my_robot.execute_path(s, t)
+        is_navigating    = False
         if success:
             current_location = t
 
@@ -361,7 +422,6 @@ def handle_command():
 
 @app.route('/status', methods=['GET'])
 def get_status():
-    # ดึง pose ที่ดีที่สุด ณ ขณะนั้น (AMCL หรือ Odom)
     best_x, best_y, best_yaw, pose_source = my_robot.get_best_pose()
 
     return jsonify({
@@ -376,22 +436,17 @@ def get_status():
         },
         "odom_yaw_deg": round(math.degrees(my_robot.yaw), 2),
 
-        # AMCL (absolute, frame: map)
-        "amcl_position": {
-            "x": round(my_robot.amcl_x, 3),
-            "y": round(my_robot.amcl_y, 3),
-        },
-        "amcl_yaw_deg":    round(math.degrees(my_robot.amcl_yaw), 2),
-        "amcl_covariance": round(my_robot.amcl_covariance, 4),
-        "amcl_ready":      my_robot.amcl_ready,
-
-        # Best estimate
-        "best_position": {
+        # gmapping pose (frame: map, via tf)
+        "map_position": {
             "x": round(best_x, 3),
             "y": round(best_y, 3),
         },
-        "best_yaw_deg":  round(math.degrees(best_yaw), 2),
-        "pose_source":   pose_source,   # "amcl" หรือ "odom"
+        "map_yaw_deg": round(math.degrees(best_yaw), 2),
+        "pose_source": pose_source,   # "gmapping" หรือ "odom"
+
+        # Wall avoidance info
+        "wall_offset_m": my_robot.WALL_OFFSET,
+        "wall_gain":     my_robot.WALL_GAIN,
     })
 
 
@@ -410,45 +465,35 @@ def handle_reset_home():
     rospy.loginfo("Reset signal received: Stopping current task...")
     threading.Thread(target=my_robot.execute_home_sequence).start()
     return jsonify({
-        "status": "success",
+        "status":  "success",
         "message": "Robot is executing home sequence and resetting node to 1"
     }), 200
 
 
-@app.route('/amcl/set-pose', methods=['POST'])
-def handle_set_pose():
+@app.route('/wall/config', methods=['POST'])
+def set_wall_config():
     """
-    ตั้งตำแหน่งเริ่มต้นให้ AMCL แบบ manual
-    Body JSON: {"x": 0.0, "y": 0.0, "yaw": 0.0}   (yaw หน่วยเป็นองศา)
-
-    ใช้เมื่อ:
-    - เปิดเครื่องใหม่แล้ว AMCL หา particle ไม่เจอ
-    - หุ่นถูกย้ายตำแหน่งโดยไม่ได้สั่งให้ขยับ
+    ปรับ wall avoidance parameter แบบ runtime
+    Body JSON: {"offset": 0.5, "gain": 1.2}
     """
-    data   = request.json or {}
-    x      = float(data.get("x",   0.0))
-    y      = float(data.get("y",   0.0))
-    yaw    = float(data.get("yaw", 0.0))
-
-    threading.Thread(target=my_robot.set_initial_pose, args=(x, y, yaw)).start()
+    data = request.json or {}
+    if "offset" in data:
+        my_robot.WALL_OFFSET = float(data["offset"])
+    if "gain" in data:
+        my_robot.WALL_GAIN = float(data["gain"])
     return jsonify({
-        "status":  "success",
-        "message": f"Initial pose sent to AMCL: x={x}, y={y}, yaw={yaw}°"
+        "status":       "success",
+        "wall_offset_m": my_robot.WALL_OFFSET,
+        "wall_gain":     my_robot.WALL_GAIN,
     }), 200
 
 
-@app.route('/amcl/status', methods=['GET'])
-def handle_amcl_status():
-    """ดูสถานะ AMCL แยกต่างหาก"""
+@app.route('/wall/config', methods=['GET'])
+def get_wall_config():
     return jsonify({
-        "amcl_ready":      my_robot.amcl_ready,
-        "amcl_covariance": round(my_robot.amcl_covariance, 4),
-        "amcl_position": {
-            "x": round(my_robot.amcl_x, 3),
-            "y": round(my_robot.amcl_y, 3),
-        },
-        "amcl_yaw_deg": round(math.degrees(my_robot.amcl_yaw), 2),
-        "note": "covariance < 0.05 means AMCL is confident"
+        "wall_offset_m": my_robot.WALL_OFFSET,
+        "wall_gain":     my_robot.WALL_GAIN,
+        "note": "POST to /wall/config with {offset, gain} to change"
     })
 
 
@@ -465,8 +510,11 @@ if __name__ == "__main__":
     is_navigating    = False
 
     print("--- Robot Server Ready on Port 5000 ---")
-    print("  New endpoints:")
-    print("    POST /amcl/set-pose   body: {x, y, yaw}")
-    print("    GET  /amcl/status")
-    print("    GET  /status          (now includes amcl + best_pose fields)")
+    print("  Endpoints:")
+    print("    POST /command          body: {start, target}")
+    print("    POST /stop")
+    print("    POST /command/reset-home")
+    print("    GET  /status           (odom + gmapping tf + wall info)")
+    print("    GET  /wall/config")
+    print("    POST /wall/config      body: {offset, gain}")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
