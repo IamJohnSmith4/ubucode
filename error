@@ -145,12 +145,12 @@ rviz
     <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
   </node>
 
-  <!-- Kobuki -->
-  <node pkg="kobuki_node" type="kobuki_node" name="kobuki"
-        output="screen">
-    <param name="device_port" value="/dev/ttyUSB0"/>
-    <rosparam file="$(find kobuki_node)/param/base.yaml" command="load"/>
-  </node>
-
 </launch>
 
+ERROR] [1778570383.057814057]: Map_server could not open /home/ubuntu2004/map/floor3v2.yaml.
+[INFO] [1778570383.361553413]: Requesting the map...
+[WARN] [1778570383.380637649]: Request for map failed; trying again...
+[map_server-2] process has died [pid 7945, exit code 255, cmd /opt/ros/noetic/lib/map_server/map_server /home/ubuntu2004/map/floor3v2.yaml __name:=map_server __log:=/home/ubutu2004/.ros/log/efff8794-4dd1-11f1-8ec2-1f6277ba6661/map_server-2.log].
+log file: /home/ubutu2004/.ros/log/efff8794-4dd1-11f1-8ec2-1f6277ba6661/map_server-2*.log
+[WARN] [1778570383.882992435]: Request for map failed; trying again...
+[WARN] [1778570384.385221793]: Request for map failed; trying again...
