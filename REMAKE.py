@@ -298,7 +298,7 @@ class OdomRobot:
         paths = {
             (1, 2): [
                 ("rotate", -90),
-                ("move",   5.8),
+                ("move",   6.0),
                 ("rotate", 90),
                 ("move",  10.0),
                 ("move",   5.2),
@@ -307,7 +307,7 @@ class OdomRobot:
             ],
             (1, 3): [
                 ("rotate", -90),
-                ("move",   5.8),
+                ("move",   6.0),
                 ("rotate", 90),
                 ("move",  10.0),
                 ("move",  10.0),
@@ -322,7 +322,7 @@ class OdomRobot:
                 ("move",  10.0),
                 ("move",   5.2),
                 ("rotate", -90),
-                ("move",   5.8),
+                ("move",   6.0),
                 ("rotate", -90),
             ],
             (2, 3): [
@@ -330,7 +330,7 @@ class OdomRobot:
                 ("move",   1.0),
                 ("rotate", 90),
                 ("move",  10.0),
-                ("move",   2.5),
+                ("move",   6.0),
                 ("rotate", 90),
                 ("move",   1.0),
             ],
