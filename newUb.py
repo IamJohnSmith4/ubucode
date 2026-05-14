@@ -1,8 +1,9 @@
 <launch>
-
   <!-- TF: base_footprint → laser_link -->
+  <!-- static_transform_publisher: x y z yaw pitch roll frame child period -->
   <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
-        args="0 0 0.2 0 0 0 -1.5708 base_footprint laser_link 50"/>
+        args="0 0 0.2 0 0 0 base_footprint laser_link 50"/>
+  <!--          ↑ ลบ -1.5708 ออก (ถ้า laser ไม่ได้หมุน 90°) -->
 
   <!-- map_server -->
   <node pkg="map_server" type="map_server" name="map_server"
@@ -19,13 +20,21 @@
     <param name="base_frame_id"       value="base_footprint"/>
     <param name="global_frame_id"     value="map"/>
     <param name="laser_model_type"    value="likelihood_field"/>
-    <param name="min_particles"       value="100"/>
-    <param name="max_particles"       value="500"/>
+
+    <!-- เพิ่ม particle -->
+    <param name="min_particles"       value="500"/>
+    <param name="max_particles"       value="2000"/>
+
     <param name="laser_max_range"     value="7.0"/>
     <param name="laser_max_beams"     value="60"/>
-    <param name="update_min_d"        value="0.1"/>
-    <param name="update_min_a"        value="0.2"/>
-    <param name="transform_tolerance" value="1.0"/>
+
+    <!-- update บ่อยขึ้น -->
+    <param name="update_min_d"        value="0.05"/>
+    <param name="update_min_a"        value="0.1"/>
+
+    <!-- transform tolerance ลดลง -->
+    <param name="transform_tolerance" value="0.2"/>
+
     <param name="initial_pose_x"      value="0.0"/>
     <param name="initial_pose_y"      value="0.0"/>
     <param name="initial_pose_a"      value="0.0"/>
@@ -46,10 +55,11 @@
               command="load"/>
     <param name="base_global_planner"
            value="navfn/NavfnROS"/>
+
+    <!-- เปลี่ยนเป็น DWA -->
     <param name="base_local_planner"
-           value="base_local_planner/TrajectoryPlannerROS"/>
+           value="dwa_local_planner/DWAPlannerROS"/>
+
     <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
   </node>
-
-
 </launch>
