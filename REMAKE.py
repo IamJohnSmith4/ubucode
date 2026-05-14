@@ -22,9 +22,9 @@ current_progress = 0
 velocity_publisher = None
 
 NODE_POSES = {
-    1:  {"x":  2.379, "y":  -0.639, "yaw":  0.012},
-    2:  {"x": 12.455, "y":  13.314, "yaw":  0.002},
-    3:  {"x": 16.521, "y":  22.191, "yaw":  0.002},
+    1:  {"x":  2.379, "y":  -0.639, "yaw":  0.0},
+    2:  {"x": 12.455, "y":  13.314, "yaw":  0.0},
+    3:  {"x": 16.521, "y":  22.191, "yaw":  0.0},
 }
 
 def signal_handler(sig, frame):
