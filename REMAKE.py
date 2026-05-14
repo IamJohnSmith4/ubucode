@@ -172,6 +172,11 @@ class OdomRobot:
 
         self._wait_for_amcl(timeout=10.0)
 
+        # ตั้ง AMCL = Node 1 ทันทีหลัง Home Sequence เสร็จ
+        n1 = NODE_POSES[1]
+        self.set_initial_pose(n1["x"], n1["y"], n1["yaw"])
+        rospy.loginfo(f"[AMCL] Initial pose set to Node 1: x={n1['x']} y={n1['y']} yaw={n1['yaw']}°")
+
     # --------------------------------------------------
     # CALLBACKS
     # --------------------------------------------------
@@ -254,6 +259,11 @@ class OdomRobot:
         self.reset_home()
         current_location = 1
         is_navigating = False
+
+        # ตั้ง AMCL = Node 1 ทันทีหลัง Home Sequence เสร็จ
+        n1 = NODE_POSES[1]
+        self.set_initial_pose(n1["x"], n1["y"], n1["yaw"])
+        rospy.loginfo(f"[AMCL] Pose reset to Node 1: x={n1['x']} y={n1['y']} yaw={n1['yaw']}°")
         rospy.loginfo("--- Home Sequence Done: Node=1 ---")
 
     # --------------------------------------------------
