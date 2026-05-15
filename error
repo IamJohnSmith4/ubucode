@@ -74,8 +74,14 @@ rviz
 <launch>
 
 <launch>
-  <!-- Match slam.launch exactly — base_link not base_footprint -->
-  <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
+  <!-- Bridge between base_footprint and base_link -->
+  <node pkg="tf" type="static_transform_publisher" 
+        name="footprint_to_base"
+        args="0 0 0 0 0 0 base_footprint base_link 50"/>
+
+  <!-- Laser TF — matches slam.launch exactly -->
+  <node pkg="tf" type="static_transform_publisher" 
+        name="base_to_laser"
         args="0 0 0.2 0 0 0 -1.5708 base_link laser_link 50"/>
 
   <!-- map_server -->
@@ -90,9 +96,7 @@ rviz
     <param name="tf_broadcast"        value="true"/>
     <param name="odom_model_type"     value="diff"/>
     <param name="odom_frame_id"       value="odom"/>
-
-    <!-- Change to base_link to match slam.launch -->
-    <param name="base_frame_id"       value="base_link"/>
+    <param name="base_frame_id"       value="base_footprint"/>
     <param name="global_frame_id"     value="map"/>
     <param name="laser_model_type"    value="likelihood_field"/>
     <param name="min_particles"       value="500"/>
@@ -127,5 +131,6 @@ rviz
     <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
   </node>
 
+</launch>
 </launch>
 
