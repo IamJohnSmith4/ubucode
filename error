@@ -114,7 +114,6 @@ rviz
     <param name="recovery_alpha_fast" value="0.1"/>
   </node>
 
-  <!-- move_base -->
   <node pkg="move_base" type="move_base" name="move_base" output="screen">
     <rosparam file="$(find my_robot)/config/costmap_common.yaml"
               command="load" ns="global_costmap"/>
@@ -129,8 +128,46 @@ rviz
     <param name="base_global_planner"  value="navfn/NavfnROS"/>
     <param name="base_local_planner"   value="base_local_planner/TrajectoryPlannerROS"/>
     <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
-  </node>
+
+    <!-- ADD THESE to stop spinning -->
+    <param name="controller_frequency"    value="5.0"/>
+    <param name="planner_patience"        value="5.0"/>
+    <param name="controller_patience"     value="15.0"/>
+    <param name="conservative_reset_dist" value="3.0"/>
+    <param name="recovery_behavior_enabled" value="false"/>
+    <param name="clearing_rotation_allowed" value="false"/>
+</node>
 
 </launch>
-</launch>
 
+TrajectoryPlannerROS:
+  # Speed settings
+  max_vel_x: 0.3          # increase from default
+  min_vel_x: 0.1          # minimum forward speed
+  max_vel_theta: 0.8      # max rotation speed
+  min_in_place_vel_theta: 0.4  # min rotation speed
+  
+  # Acceleration
+  acc_lim_x: 0.5
+  acc_lim_theta: 1.0
+  
+  # Path following
+  holonomic_robot: false
+  sim_time: 1.5           # how far ahead to simulate
+  vx_samples: 10          # speed samples
+  vtheta_samples: 20      # rotation samples
+  
+  # Goal tolerance
+  xy_goal_tolerance: 0.3  # stop within 30cm of goal
+  yaw_goal_tolerance: 0.5 # stop within 0.5 rad of goal angle
+  
+  # Path tolerance — KEY for stopping spin
+  pdist_scale: 0.9        # how much to follow path
+  gdist_scale: 0.6        # how much to go toward goal
+  occdist_scale: 0.1      # obstacle avoidance weight
+  
+  # Stop oscillation/spinning
+  oscillation_reset_dist: 0.1
+  escape_vel: -0.1
+  escape_reset_dist: 0.1
+  escape_reset_theta: 0.1
