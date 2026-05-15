@@ -74,10 +74,9 @@ rviz
 <launch>
 
 <launch>
-
-  <!-- TF: base_footprint → laser_link -->
+  <!-- Match slam.launch exactly — base_link not base_footprint -->
   <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
-        args="0 0 0.2 0 0 0 base_footprint laser_link 50"/>
+        args="0 0 0.2 0 0 0 -1.5708 base_link laser_link 50"/>
 
   <!-- map_server -->
   <node pkg="map_server" type="map_server" name="map_server"
@@ -91,7 +90,9 @@ rviz
     <param name="tf_broadcast"        value="true"/>
     <param name="odom_model_type"     value="diff"/>
     <param name="odom_frame_id"       value="odom"/>
-    <param name="base_frame_id"       value="base_footprint"/>
+
+    <!-- Change to base_link to match slam.launch -->
+    <param name="base_frame_id"       value="base_link"/>
     <param name="global_frame_id"     value="map"/>
     <param name="laser_model_type"    value="likelihood_field"/>
     <param name="min_particles"       value="500"/>
@@ -107,17 +108,7 @@ rviz
     <param name="gui_publish_rate"    value="10.0"/>
     <param name="recovery_alpha_slow" value="0.001"/>
     <param name="recovery_alpha_fast" value="0.1"/>
-
-    <param name="resample_interval"   value="1"/>
-    <!-- Add these new params -->
-    <param name="laser_z_hit"         value="0.95"/>
-    <param name="laser_z_rand"        value="0.05"/>
-    <param name="laser_sigma_hit"     value="0.2"/>
-    <param name="odom_alpha1"         value="0.2"/>
-    <param name="odom_alpha2"         value="0.2"/>
-    <param name="odom_alpha3"         value="0.1"/>
-    <param name="odom_alpha4"         value="0.1"/>
-      </node>
+  </node>
 
   <!-- move_base -->
   <node pkg="move_base" type="move_base" name="move_base" output="screen">
@@ -131,13 +122,10 @@ rviz
               command="load"/>
     <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
               command="load"/>
-    <param name="base_global_planner"
-           value="navfn/NavfnROS"/>
-    <param name="base_local_planner"
-           value="base_local_planner/TrajectoryPlannerROS"/>
+    <param name="base_global_planner"  value="navfn/NavfnROS"/>
+    <param name="base_local_planner"   value="base_local_planner/TrajectoryPlannerROS"/>
     <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
   </node>
-
 
 </launch>
 
