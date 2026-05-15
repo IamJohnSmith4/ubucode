@@ -22,9 +22,9 @@ current_progress = 0
 velocity_publisher = None
 
 NODE_POSES = {
-    1:  {"x":  2.379, "y":  -0.639, "yaw":  0.0},
-    2:  {"x": 12.455, "y":  13.314, "yaw":  0.0},
-    3:  {"x": 16.521, "y":  22.191, "yaw":  0.0},
+    1:  {"x":  2.379, "y":  -0.639, "yaw":  0.012},
+    2:  {"x": 12.455, "y":  13.314, "yaw":  0.002},
+    3:  {"x": 16.521, "y":  22.191, "yaw":  0.002},
 }
 
 def signal_handler(sig, frame):
@@ -62,7 +62,7 @@ class PID:
 class ObstacleMonitor:
     def __init__(self):
         self.DANGER_DIST  = 0.50   # เมตร — อันตราย หยุดทันที
-        self.WARNING_DIST = 0.80   # เมตร — เตือน ชะลอ
+        self.WARNING_DIST = 1.5   # เมตร — เตือน ชะลอ
 
         self.front_dist = 999.0
         self.left_dist  = 999.0
@@ -273,7 +273,7 @@ class OdomRobot:
         start_x, start_y = self.x, self.y
         target_yaw = self.yaw
         rate = rospy.Rate(20)
-        LINEAR_SPEED = 0.10
+        LINEAR_SPEED = 0.20
         cur_spd = 0.05
         self.pid_straight.integral = self.pid_straight.last_error = 0.0
 
