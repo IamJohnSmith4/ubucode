@@ -223,3 +223,47 @@ TrajectoryPlannerROS:
 
 
 </launch>
+
+
+#!/bin/bash
+
+# === Permissions ===
+sudo chmod 666 /dev/ttyUSB1
+
+# === Start tmux session ===
+SESSION="ros_kobuki"
+
+# ถ้า session มีอยู่แล้ว ให้ attach เลย
+tmux has-session -t $SESSION 2>/dev/null
+if [ $? == 0 ]; then
+  echo "Session '$SESSION' มีอยู่แล้ว กำลัง attach..."
+  tmux attach-session -t $SESSION
+  exit 0
+fi
+
+# สร้าง session ใหม่ + window แรก (roscore)
+tmux new-session -d -s $SESSION -n "roscore"
+tmux send-keys -t $SESSION:0 "roscore" Enter
+
+# Window 1: talker
+tmux new-window -t $SESSION:1 -n "talker"
+tmux send-keys -t $SESSION:1 "sleep 2 && rosrun talker talker _serial_port:=/dev/ttyUSB1" Enter
+
+# Window 2: keyop
+tmux new-window -t $SESSION:2 -n "keyop"
+tmux send-keys -t $SESSION:2 "sleep 3 && rosrun kobuki_driver simple_keyop" Enter
+
+# Window 3: kobuki_node
+tmux new-window -t $SESSION:3 -n "kobuki"
+tmux send-keys -t $SESSION:3 "sleep 3 && roslaunch kobuki_node minimal.launch" Enter
+
+# Window 4: rviz
+tmux new-window -t $SESSION:4 -n "rviz"
+tmux send-keys -t $SESSION:4 "sleep 4 && rviz" Enter
+
+# Attach ไปที่ session
+tmux attach-session -t $SESSION
+
+
+chmod +x start_ros.sh
+./start_ros.sh
