@@ -24,7 +24,7 @@ velocity_publisher = None
 # NODE MAP
 # ==================================================
 NODE_POSES = {
-    1: {"x":  2.379, "y":  -0.639, "yaw_rad":  0.012},
+    1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.0},
     2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.002},
     3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.002},
 }
@@ -38,6 +38,87 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
+
+
+# ==================================================
+# MOVEMENT DIRECTION LOGGER
+# ==================================================
+class MovementLogger:
+    """
+    Infers and logs robot movement direction (Forward / Backward / Turn Left /
+    Turn Right / Rotating / Stationary) by comparing consecutive poses.
+
+    Thresholds (tune to your robot's speed):
+        LINEAR_THRESHOLD  – minimum displacement (m) to be "moving"
+        ANGULAR_THRESHOLD – minimum yaw change (rad) to be "rotating"
+        FORWARD_DOT_THRESHOLD – cosine threshold to decide fwd vs bwd
+                                (positive = same general heading → forward)
+    """
+
+    LINEAR_THRESHOLD      = 0.02   # metres per sample
+    ANGULAR_THRESHOLD     = 0.02   # radians per sample
+    FORWARD_DOT_THRESHOLD = 0.0    # dot ≥ 0 → forward, < 0 → backward
+
+    def __init__(self):
+        self.prev_x   = None
+        self.prev_y   = None
+        self.prev_yaw = None
+        self.last_logged_direction = None   # suppress repeated identical logs
+
+    def reset(self):
+        self.prev_x   = None
+        self.prev_y   = None
+        self.prev_yaw = None
+        self.last_logged_direction = None
+
+    def update(self, x, y, yaw):
+        """Call this every loop iteration. Returns direction string or None."""
+        if self.prev_x is None:
+            self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
+            return None
+
+        dx  = x   - self.prev_x
+        dy  = y   - self.prev_y
+        dyaw = math.atan2(math.sin(yaw - self.prev_yaw),
+                          math.cos(yaw - self.prev_yaw))  # wrapped diff
+
+        lin_dist = math.sqrt(dx**2 + dy**2)
+        moving   = lin_dist  > self.LINEAR_THRESHOLD
+        rotating = abs(dyaw) > self.ANGULAR_THRESHOLD
+
+        direction = None
+
+        if moving and rotating:
+            # Arcing turn — report primary rotation side
+            direction = "↺ Turn Left"  if dyaw > 0 else "↻ Turn Right"
+
+        elif moving:
+            # Straight motion — check if displacement aligns with heading
+            # heading vector from previous yaw
+            hx = math.cos(self.prev_yaw)
+            hy = math.sin(self.prev_yaw)
+            # normalise displacement
+            nx = dx / lin_dist
+            ny = dy / lin_dist
+            dot = nx * hx + ny * hy
+            direction = "⬆ Forward" if dot >= self.FORWARD_DOT_THRESHOLD else "⬇ Backward"
+
+        elif rotating:
+            direction = "↺ Turn Left"  if dyaw > 0 else "↻ Turn Right"
+
+        else:
+            direction = "◼ Stationary"
+
+        # Update previous pose
+        self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
+
+        # Only log when direction changes (avoids log spam)
+        if direction != self.last_logged_direction:
+            rospy.loginfo(f"[Move] {direction}  "
+                          f"Δpos={lin_dist*100:.1f}cm  Δyaw={math.degrees(dyaw):.1f}°")
+            self.last_logged_direction = direction
+
+        return direction
 
 
 # ==================================================
@@ -77,6 +158,9 @@ class OdomRobot:
         self.amcl_ready      = False
         self.amcl_lock       = threading.Lock()
 
+        # --- Movement Logger ---
+        self.movement_logger = MovementLogger()
+
         # --- move_base ---
         rospy.loginfo("[move_base] Connecting...")
         self.move_base_client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
@@ -90,15 +174,10 @@ class OdomRobot:
         self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1, min_val=-0.4, max_val=0.4)
         self.pid_rotate   = PID(kp=1.0, ki=0.01,  kd=0.1, min_val=-0.3, max_val=0.3)
 
-        # --- Motion logger state ---
-        self._motion_log_active = False
-        self._motion_log_thread = None
-
         rospy.loginfo("Waiting for odom...")
         rospy.wait_for_message("/odom", Odometry)
         rospy.sleep(1)
 
-        # ✅ ตั้ง AMCL = Node 1 เป็นจุดเริ่มต้นเลย
         self._wait_for_amcl(timeout=10.0)
         self._set_amcl_to_node(1)
         rospy.loginfo("=== READY: Start at Node 1 ===")
@@ -172,67 +251,6 @@ class OdomRobot:
         return self.x, self.y, self.yaw, "odom"
 
     # --------------------------------------------------
-    # MOTION DIRECTION LOGGER
-    # --------------------------------------------------
-    MOVE_DIST_THRESHOLD = 0.03   # metres  — minimum distance to log (filters jitter)
-    TURN_YAW_THRESHOLD  = 2.0    # degrees — minimum yaw change to log a turn
-    MOTION_LOG_RATE_HZ  = 4      # samples per second
-
-    def _motion_direction_logger(self):
-        rate = rospy.Rate(self.MOTION_LOG_RATE_HZ)
-        prev_x, prev_y, prev_yaw, _ = self.get_best_pose()
-
-        while self._motion_log_active and not rospy.is_shutdown():
-            rate.sleep()
-            cur_x, cur_y, cur_yaw, source = self.get_best_pose()
-
-            dx   = cur_x - prev_x
-            dy   = cur_y - prev_y
-            dist = math.sqrt(dx**2 + dy**2)
-
-            # Yaw delta wrapped to -180..+180
-            dyaw     = math.atan2(math.sin(cur_yaw - prev_yaw),
-                                  math.cos(cur_yaw - prev_yaw))
-            dyaw_deg = math.degrees(dyaw)
-
-            actions = []
-
-            # Rotation
-            if abs(dyaw_deg) >= self.TURN_YAW_THRESHOLD:
-                if dyaw_deg > 0:
-                    actions.append(f"<= TURN LEFT  ({dyaw_deg:+.1f} deg)")
-                else:
-                    actions.append(f"=> TURN RIGHT ({dyaw_deg:+.1f} deg)")
-
-            # Translation — dot product onto robot heading
-            if dist >= self.MOVE_DIST_THRESHOLD:
-                dot = dx * math.cos(cur_yaw) + dy * math.sin(cur_yaw)
-                if dot >= 0:
-                    actions.append(f">> FORWARD    ({dist:.3f} m)")
-                else:
-                    actions.append(f"<< BACKWARD   ({dist:.3f} m)")
-
-            if actions:
-                tag = "[Motion/%s]" % source.upper()
-                for a in actions:
-                    rospy.loginfo("%s %s" % (tag, a))
-
-            prev_x, prev_y, prev_yaw = cur_x, cur_y, cur_yaw
-
-    def _start_motion_logger(self):
-        if self._motion_log_thread and self._motion_log_thread.is_alive():
-            return
-        self._motion_log_active = True
-        self._motion_log_thread = threading.Thread(
-            target=self._motion_direction_logger, daemon=True)
-        self._motion_log_thread.start()
-        rospy.loginfo("[Motion] Logger started.")
-
-    def _stop_motion_logger(self):
-        self._motion_log_active = False
-        rospy.loginfo("[Motion] Logger stopped.")
-
-    # --------------------------------------------------
     # RESET HOME
     # --------------------------------------------------
     def execute_home_sequence(self):
@@ -271,37 +289,46 @@ class OdomRobot:
 
         tx = NODE_POSES[target_node]["x"]
         ty = NODE_POSES[target_node]["y"]
-        rospy.loginfo(f"[Nav] -> Node {target_node} ({tx:.2f}, {ty:.2f})")
+        rospy.loginfo(f"[Nav] → Node {target_node} ({tx:.2f}, {ty:.2f})")
 
         self.move_base_client.send_goal(goal)
         current_progress = 0
-        rate = rospy.Rate(2)
 
-        self._start_motion_logger()   # START logging
+        # Reset movement logger for fresh direction tracking
+        self.movement_logger.reset()
+        rospy.loginfo("[Move] Direction logging started.")
+
+        rate = rospy.Rate(2)  # 2 Hz sampling — enough to detect direction changes
 
         while not rospy.is_shutdown():
 
             if not is_navigating:
                 self.move_base_client.cancel_goal()
                 rospy.loginfo("[Nav] Goal cancelled.")
-                self._stop_motion_logger()   # STOP on cancel
+                rospy.loginfo("[Move] Direction logging stopped.")
                 return False
 
             state = self.move_base_client.get_state()
 
             if state == GoalStatus.SUCCEEDED:
                 current_progress = 100
-                rospy.loginfo(f"[Nav] Reached Node {target_node}!")
-                self._stop_motion_logger()   # STOP on success
+                rospy.loginfo(f"[Nav] ✓ Reached Node {target_node}!")
+                rospy.loginfo("[Move] Direction logging stopped — destination reached.")
                 return True
 
             elif state in (GoalStatus.ABORTED, GoalStatus.REJECTED,
                            GoalStatus.PREEMPTED, GoalStatus.LOST):
                 rospy.logwarn(f"[Nav] Failed. State={state}")
-                self._stop_motion_logger()   # STOP on failure
+                rospy.loginfo("[Move] Direction logging stopped — navigation failed.")
                 return False
 
-            bx, by, _, _ = self.get_best_pose()
+            # ── Best pose for logging (AMCL when confident, else odometry) ──
+            bx, by, byaw, pose_src = self.get_best_pose()
+
+            # ── Log movement direction ──
+            self.movement_logger.update(bx, by, byaw)
+
+            # ── Progress estimate ──
             dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
             src = NODE_POSES.get(current_location, {"x": bx, "y": by})
             dist_tot = math.sqrt((tx - src["x"])**2 + (ty - src["y"])**2)
@@ -309,10 +336,14 @@ class OdomRobot:
                 current_progress = max(0, min(99,
                     (1 - dist_rem / dist_tot) * 100))
 
-            rospy.loginfo(f"[Nav] progress={current_progress:.1f}% dist={dist_rem:.2f}m")
+            rospy.loginfo(
+                f"[Nav] progress={current_progress:.1f}%  "
+                f"dist={dist_rem:.2f}m  "
+                f"pos=({bx:.2f},{by:.2f})  "
+                f"src={pose_src}"
+            )
             rate.sleep()
 
-        self._stop_motion_logger()   # STOP if ROS shuts down mid-loop
         return False
 
     def execute_path(self, start, target):
@@ -363,13 +394,15 @@ def get_status():
         "current_progress": round(current_progress, 1),
         "odom_position":    {"x": round(my_robot.x, 3), "y": round(my_robot.y, 3)},
         "odom_yaw_deg":     round(math.degrees(my_robot.yaw), 2),
-        "amcl_position":    {"x": round(my_robot.amcl_x, 3), "y": round(my_robot.amcl_y, 3)},
+        "amcl_position":    {"x": round(my_robot.amcl_x, 3),
+                             "y": round(my_robot.amcl_y, 3)},
         "amcl_yaw_deg":     round(math.degrees(my_robot.amcl_yaw), 2),
         "amcl_covariance":  round(my_robot.amcl_covariance, 4),
         "amcl_ready":       my_robot.amcl_ready,
         "best_position":    {"x": round(bx, 3), "y": round(by, 3)},
         "best_yaw_deg":     round(math.degrees(byaw), 2),
         "pose_source":      src,
+        "current_direction": my_robot.movement_logger.last_logged_direction,
     })
 
 
@@ -401,7 +434,7 @@ def handle_set_pose():
     yaw_rad = math.radians(yaw_deg)
     threading.Thread(target=my_robot.set_initial_pose, args=(x, y, yaw_rad)).start()
     return jsonify({"status": "success",
-                    "message": f"Pose -> x={x} y={y} yaw={yaw_deg} deg"}), 200
+                    "message": f"Pose → x={x} y={y} yaw={yaw_deg}°"}), 200
 
 
 @app.route('/amcl/status', methods=['GET'])
@@ -451,7 +484,7 @@ if __name__ == "__main__":
     print("  POST /command              {start, target}")
     print("  GET  /status")
     print("  POST /stop")
-    print("  POST /command/reset-home   -> Reset AMCL to Node 1")
+    print("  POST /command/reset-home   → Reset AMCL to Node 1")
     print("  POST /amcl/set-pose        {x, y, yaw_deg}")
     print("  GET  /amcl/status")
     print("  GET  /nodes")
