@@ -10,6 +10,7 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from tf.transformations import euler_from_quaternion
 from flask import Flask, request, jsonify
+from typing import List
 import actionlib
 
 # ==================================================
@@ -41,7 +42,7 @@ NODE_POSES = {
 #   Any     → Node 0    : direct
 #   Node 0  → Any       : direct
 # ==================================================
-def get_waypoints(start: int, target: int) -> list[int]:
+def get_waypoints(start: int, target: int) -> List[int]:
     """
     Returns an ordered list of node IDs to visit (excluding start),
     routing through Node 0 when crossing between the Node-1 side
@@ -127,6 +128,13 @@ class OdomRobot:
         self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1, min_val=-0.4, max_val=0.4)
         self.pid_rotate   = PID(kp=1.0, ki=0.01,  kd=0.1, min_val=-0.3, max_val=0.3)
 
+        # --- Motion logger ---
+        self._last_log_x   = 0.0
+        self._last_log_y   = 0.0
+        self._last_log_yaw = 0.0
+        self._motion_log_active = False
+        self._motion_log_thread = None
+
         rospy.loginfo("Waiting for odom...")
         rospy.wait_for_message("/odom", Odometry)
         rospy.sleep(1)
@@ -204,6 +212,80 @@ class OdomRobot:
         return self.x, self.y, self.yaw, "odom"
 
     # --------------------------------------------------
+    # MOTION DIRECTION LOGGER
+    # --------------------------------------------------
+    # Thresholds — tune these to your robot's speed
+    MOVE_DIST_THRESHOLD  = 0.03   # metres  — ignore tiny jitter
+    TURN_YAW_THRESHOLD   = 2.0    # degrees — ignore tiny jitter
+    MOTION_LOG_RATE_HZ   = 4      # how often per second we sample pose
+
+    def _motion_direction_logger(self):
+        """
+        Background thread: samples pose at MOTION_LOG_RATE_HZ and prints
+        a human-readable direction whenever the robot moves meaningfully.
+        """
+        rate    = rospy.Rate(self.MOTION_LOG_RATE_HZ)
+        prev_x, prev_y, prev_yaw, _ = self.get_best_pose()
+
+        while self._motion_log_active and not rospy.is_shutdown():
+            rate.sleep()
+            cur_x, cur_y, cur_yaw, source = self.get_best_pose()
+
+            dx   = cur_x - prev_x
+            dy   = cur_y - prev_y
+            dist = math.sqrt(dx**2 + dy**2)
+
+            # Yaw delta (wrapped to -π … π)
+            dyaw     = math.atan2(math.sin(cur_yaw - prev_yaw),
+                                  math.cos(cur_yaw - prev_yaw))
+            dyaw_deg = math.degrees(dyaw)
+
+            actions = []
+
+            # ── Rotation ────────────────────────────────────────────────
+            if abs(dyaw_deg) >= self.TURN_YAW_THRESHOLD:
+                if dyaw_deg > 0:
+                    actions.append(f"↺ TURN LEFT  ({dyaw_deg:+.1f}°)")
+                else:
+                    actions.append(f"↻ TURN RIGHT ({dyaw_deg:+.1f}°)")
+
+            # ── Translation ─────────────────────────────────────────────
+            if dist >= self.MOVE_DIST_THRESHOLD:
+                # Project displacement onto robot's current heading
+                # to distinguish forward vs backward
+                forward_x = math.cos(cur_yaw)
+                forward_y = math.sin(cur_yaw)
+                dot       = dx * forward_x + dy * forward_y   # >0 = forward
+
+                if dot >= 0:
+                    actions.append(f"▶ FORWARD    ({dist:.3f} m)")
+                else:
+                    actions.append(f"◀ BACKWARD   ({dist:.3f} m)")
+
+            if actions:
+                tag = f"[Motion/{source.upper()}]"
+                for a in actions:
+                    rospy.loginfo(f"{tag} {a}")
+
+            prev_x, prev_y, prev_yaw = cur_x, cur_y, cur_yaw
+
+    def _start_motion_logger(self):
+        if self._motion_log_thread and self._motion_log_thread.is_alive():
+            return
+        self._motion_log_active = True
+        # Seed previous pose so first delta isn't noise
+        self._last_log_x, self._last_log_y, self._last_log_yaw, _ = \
+            self.get_best_pose()
+        self._motion_log_thread = threading.Thread(
+            target=self._motion_direction_logger, daemon=True)
+        self._motion_log_thread.start()
+        rospy.loginfo("[Motion] Logger started.")
+
+    def _stop_motion_logger(self):
+        self._motion_log_active = False
+        rospy.loginfo("[Motion] Logger stopped.")
+
+    # --------------------------------------------------
     # RESET HOME  ✅ ไม่ขยับหุ่น แค่ reset AMCL = Node 1
     # --------------------------------------------------
     def execute_home_sequence(self):
@@ -255,11 +337,14 @@ class OdomRobot:
         self.move_base_client.send_goal(goal)
         rate = rospy.Rate(2)
 
+        self._start_motion_logger()    # ← BEGIN direction logging
+
         while not rospy.is_shutdown():
 
             if not is_navigating:
                 self.move_base_client.cancel_goal()
                 rospy.loginfo("[Nav] Goal cancelled.")
+                self._stop_motion_logger()   # ← STOP on cancel
                 return False
 
             state = self.move_base_client.get_state()
@@ -268,11 +353,13 @@ class OdomRobot:
                 # Mark this leg as fully done
                 current_progress = round((leg_index + 1) / total_legs * 100)
                 rospy.loginfo(f"[Nav] ✓ Reached Node {target_node}!")
+                self._stop_motion_logger()   # ← STOP on success
                 return True
 
             elif state in (GoalStatus.ABORTED, GoalStatus.REJECTED,
                            GoalStatus.PREEMPTED, GoalStatus.LOST):
                 rospy.logwarn(f"[Nav] Failed. State={state}")
+                self._stop_motion_logger()   # ← STOP on failure
                 return False
 
             # Estimate progress within this leg
