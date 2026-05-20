@@ -10,7 +10,6 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from tf.transformations import euler_from_quaternion
 from flask import Flask, request, jsonify
-from typing import List
 import actionlib
 
 # ==================================================
@@ -25,47 +24,10 @@ velocity_publisher = None
 # NODE MAP
 # ==================================================
 NODE_POSES = {
-    0: {"x":  8.759, "y":  -0.309, "yaw_rad":  0.020},   # ← Hub waypoint
     1: {"x":  2.379, "y":  -0.639, "yaw_rad":  0.012},
     2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.002},
     3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.002},
 }
-
-# ==================================================
-# ROUTING TABLE
-# Node 0 is a mandatory hub between Node 1 and Nodes 2/3.
-#
-#   Node 1  → (2 or 3) : must pass Node 0 first  → [0, target]
-#   Node 2/3 → Node 1   : must pass Node 0 first  → [0, 1]
-#   Node 2  → Node 3    : direct (both on same side of hub)
-#   Node 3  → Node 2    : direct
-#   Any     → Node 0    : direct
-#   Node 0  → Any       : direct
-# ==================================================
-def get_waypoints(start: int, target: int) -> List[int]:
-    """
-    Returns an ordered list of node IDs to visit (excluding start),
-    routing through Node 0 when crossing between the Node-1 side
-    and the Node-2/3 side.
-    """
-    if start == target:
-        return []
-
-    side_A = {1}          # "home" side
-    side_B = {2, 3}       # "far" side
-    HUB    = 0
-
-    # Direct trips that already involve the hub
-    if start == HUB or target == HUB:
-        return [target]
-
-    # Crossing sides → insert hub
-    if (start in side_A and target in side_B) or \
-       (start in side_B and target in side_A):
-        return [HUB, target]
-
-    # Same side (e.g. 2 → 3 or 3 → 2) → direct
-    return [target]
 
 
 def signal_handler(sig, frame):
@@ -128,10 +90,7 @@ class OdomRobot:
         self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1, min_val=-0.4, max_val=0.4)
         self.pid_rotate   = PID(kp=1.0, ki=0.01,  kd=0.1, min_val=-0.3, max_val=0.3)
 
-        # --- Motion logger ---
-        self._last_log_x   = 0.0
-        self._last_log_y   = 0.0
-        self._last_log_yaw = 0.0
+        # --- Motion logger state ---
         self._motion_log_active = False
         self._motion_log_thread = None
 
@@ -139,6 +98,7 @@ class OdomRobot:
         rospy.wait_for_message("/odom", Odometry)
         rospy.sleep(1)
 
+        # ✅ ตั้ง AMCL = Node 1 เป็นจุดเริ่มต้นเลย
         self._wait_for_amcl(timeout=10.0)
         self._set_amcl_to_node(1)
         rospy.loginfo("=== READY: Start at Node 1 ===")
@@ -214,17 +174,12 @@ class OdomRobot:
     # --------------------------------------------------
     # MOTION DIRECTION LOGGER
     # --------------------------------------------------
-    # Thresholds — tune these to your robot's speed
-    MOVE_DIST_THRESHOLD  = 0.03   # metres  — ignore tiny jitter
-    TURN_YAW_THRESHOLD   = 2.0    # degrees — ignore tiny jitter
-    MOTION_LOG_RATE_HZ   = 4      # how often per second we sample pose
+    MOVE_DIST_THRESHOLD = 0.03   # metres  — minimum distance to log (filters jitter)
+    TURN_YAW_THRESHOLD  = 2.0    # degrees — minimum yaw change to log a turn
+    MOTION_LOG_RATE_HZ  = 4      # samples per second
 
     def _motion_direction_logger(self):
-        """
-        Background thread: samples pose at MOTION_LOG_RATE_HZ and prints
-        a human-readable direction whenever the robot moves meaningfully.
-        """
-        rate    = rospy.Rate(self.MOTION_LOG_RATE_HZ)
+        rate = rospy.Rate(self.MOTION_LOG_RATE_HZ)
         prev_x, prev_y, prev_yaw, _ = self.get_best_pose()
 
         while self._motion_log_active and not rospy.is_shutdown():
@@ -235,37 +190,32 @@ class OdomRobot:
             dy   = cur_y - prev_y
             dist = math.sqrt(dx**2 + dy**2)
 
-            # Yaw delta (wrapped to -π … π)
+            # Yaw delta wrapped to -180..+180
             dyaw     = math.atan2(math.sin(cur_yaw - prev_yaw),
                                   math.cos(cur_yaw - prev_yaw))
             dyaw_deg = math.degrees(dyaw)
 
             actions = []
 
-            # ── Rotation ────────────────────────────────────────────────
+            # Rotation
             if abs(dyaw_deg) >= self.TURN_YAW_THRESHOLD:
                 if dyaw_deg > 0:
-                    actions.append(f"↺ TURN LEFT  ({dyaw_deg:+.1f}°)")
+                    actions.append(f"<= TURN LEFT  ({dyaw_deg:+.1f} deg)")
                 else:
-                    actions.append(f"↻ TURN RIGHT ({dyaw_deg:+.1f}°)")
+                    actions.append(f"=> TURN RIGHT ({dyaw_deg:+.1f} deg)")
 
-            # ── Translation ─────────────────────────────────────────────
+            # Translation — dot product onto robot heading
             if dist >= self.MOVE_DIST_THRESHOLD:
-                # Project displacement onto robot's current heading
-                # to distinguish forward vs backward
-                forward_x = math.cos(cur_yaw)
-                forward_y = math.sin(cur_yaw)
-                dot       = dx * forward_x + dy * forward_y   # >0 = forward
-
+                dot = dx * math.cos(cur_yaw) + dy * math.sin(cur_yaw)
                 if dot >= 0:
-                    actions.append(f"▶ FORWARD    ({dist:.3f} m)")
+                    actions.append(f">> FORWARD    ({dist:.3f} m)")
                 else:
-                    actions.append(f"◀ BACKWARD   ({dist:.3f} m)")
+                    actions.append(f"<< BACKWARD   ({dist:.3f} m)")
 
             if actions:
-                tag = f"[Motion/{source.upper()}]"
+                tag = "[Motion/%s]" % source.upper()
                 for a in actions:
-                    rospy.loginfo(f"{tag} {a}")
+                    rospy.loginfo("%s %s" % (tag, a))
 
             prev_x, prev_y, prev_yaw = cur_x, cur_y, cur_yaw
 
@@ -273,9 +223,6 @@ class OdomRobot:
         if self._motion_log_thread and self._motion_log_thread.is_alive():
             return
         self._motion_log_active = True
-        # Seed previous pose so first delta isn't noise
-        self._last_log_x, self._last_log_y, self._last_log_yaw, _ = \
-            self.get_best_pose()
         self._motion_log_thread = threading.Thread(
             target=self._motion_direction_logger, daemon=True)
         self._motion_log_thread.start()
@@ -286,7 +233,7 @@ class OdomRobot:
         rospy.loginfo("[Motion] Logger stopped.")
 
     # --------------------------------------------------
-    # RESET HOME  ✅ ไม่ขยับหุ่น แค่ reset AMCL = Node 1
+    # RESET HOME
     # --------------------------------------------------
     def execute_home_sequence(self):
         global is_navigating, current_location
@@ -315,14 +262,7 @@ class OdomRobot:
         goal.target_pose.pose.orientation.w = math.cos(yr / 2.0)
         return goal
 
-    def navigate_to_node(self, target_node, total_legs, leg_index):
-        """
-        Navigate to a single node. Progress is scaled across all legs so
-        the reported percentage reflects the full multi-waypoint journey.
-
-        total_legs : total number of waypoint hops in this trip
-        leg_index  : 0-based index of this hop
-        """
+    def navigate_to_node(self, target_node):
         global is_navigating, current_progress
 
         goal = self._build_goal(target_node)
@@ -331,83 +271,52 @@ class OdomRobot:
 
         tx = NODE_POSES[target_node]["x"]
         ty = NODE_POSES[target_node]["y"]
-        rospy.loginfo(f"[Nav] → Node {target_node} ({tx:.2f}, {ty:.2f})  "
-                      f"[leg {leg_index+1}/{total_legs}]")
+        rospy.loginfo(f"[Nav] -> Node {target_node} ({tx:.2f}, {ty:.2f})")
 
         self.move_base_client.send_goal(goal)
+        current_progress = 0
         rate = rospy.Rate(2)
 
-        self._start_motion_logger()    # ← BEGIN direction logging
+        self._start_motion_logger()   # START logging
 
         while not rospy.is_shutdown():
 
             if not is_navigating:
                 self.move_base_client.cancel_goal()
                 rospy.loginfo("[Nav] Goal cancelled.")
-                self._stop_motion_logger()   # ← STOP on cancel
+                self._stop_motion_logger()   # STOP on cancel
                 return False
 
             state = self.move_base_client.get_state()
 
             if state == GoalStatus.SUCCEEDED:
-                # Mark this leg as fully done
-                current_progress = round((leg_index + 1) / total_legs * 100)
-                rospy.loginfo(f"[Nav] ✓ Reached Node {target_node}!")
-                self._stop_motion_logger()   # ← STOP on success
+                current_progress = 100
+                rospy.loginfo(f"[Nav] Reached Node {target_node}!")
+                self._stop_motion_logger()   # STOP on success
                 return True
 
             elif state in (GoalStatus.ABORTED, GoalStatus.REJECTED,
                            GoalStatus.PREEMPTED, GoalStatus.LOST):
                 rospy.logwarn(f"[Nav] Failed. State={state}")
-                self._stop_motion_logger()   # ← STOP on failure
+                self._stop_motion_logger()   # STOP on failure
                 return False
 
-            # Estimate progress within this leg
             bx, by, _, _ = self.get_best_pose()
             dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
             src = NODE_POSES.get(current_location, {"x": bx, "y": by})
             dist_tot = math.sqrt((tx - src["x"])**2 + (ty - src["y"])**2)
-
-            leg_pct = 0.0
             if dist_tot > 0.01:
-                leg_pct = max(0.0, min(1.0, 1.0 - dist_rem / dist_tot))
-
-            # Scale into overall progress
-            overall = (leg_index + leg_pct) / total_legs * 100
-            current_progress = round(max(current_progress, overall), 1)
+                current_progress = max(0, min(99,
+                    (1 - dist_rem / dist_tot) * 100))
 
             rospy.loginfo(f"[Nav] progress={current_progress:.1f}% dist={dist_rem:.2f}m")
             rate.sleep()
 
+        self._stop_motion_logger()   # STOP if ROS shuts down mid-loop
         return False
 
     def execute_path(self, start, target):
-        """
-        Build the waypoint list from the routing table and execute each hop
-        in sequence. Updates current_location after every successful hop.
-        """
-        global current_location, current_progress
-
-        waypoints  = get_waypoints(start, target)
-        total_legs = len(waypoints)
-
-        if total_legs == 0:
-            rospy.loginfo("[Nav] Already at target.")
-            return True
-
-        route_str = " → ".join(str(n) for n in [start] + waypoints)
-        rospy.loginfo(f"[Nav] Route: {route_str}")
-
-        current_progress = 0
-
-        for idx, node in enumerate(waypoints):
-            success = self.navigate_to_node(node, total_legs, idx)
-            if not success:
-                rospy.logwarn(f"[Nav] Route aborted at Node {node}.")
-                return False
-            current_location = node   # update location after each hop
-
-        return True
+        return self.navigate_to_node(target)
 
 
 # ==================================================
@@ -430,9 +339,6 @@ def handle_command():
         return jsonify({"status": "error",
                         "message": f"Node {target} not in NODE_POSES"}), 400
 
-    waypoints  = get_waypoints(start, target)
-    route_info = " → ".join(str(n) for n in [start] + waypoints)
-
     def run_and_finish(s, t):
         global is_navigating, current_location, current_progress
         current_progress = 0
@@ -443,12 +349,9 @@ def handle_command():
             current_location = t
 
     threading.Thread(target=run_and_finish, args=(start, target)).start()
-    return jsonify({
-        "status":      "starting",
-        "target_node": target,
-        "route":       route_info,
-        "target_pose": NODE_POSES[target],
-    }), 200
+    return jsonify({"status": "starting",
+                    "target_node": target,
+                    "target_pose": NODE_POSES[target]}), 200
 
 
 @app.route('/status', methods=['GET'])
@@ -498,7 +401,7 @@ def handle_set_pose():
     yaw_rad = math.radians(yaw_deg)
     threading.Thread(target=my_robot.set_initial_pose, args=(x, y, yaw_rad)).start()
     return jsonify({"status": "success",
-                    "message": f"Pose → x={x} y={y} yaw={yaw_deg}°"}), 200
+                    "message": f"Pose -> x={x} y={y} yaw={yaw_deg} deg"}), 200
 
 
 @app.route('/amcl/status', methods=['GET'])
@@ -532,21 +435,6 @@ def update_node(node_id):
                     "pose": NODE_POSES[node_id]}), 200
 
 
-@app.route('/route/preview', methods=['POST'])
-def preview_route():
-    """Dry-run: return the planned waypoint list without moving."""
-    data   = request.json or {}
-    start  = data.get('start')
-    target = data.get('target')
-    if start not in NODE_POSES or target not in NODE_POSES:
-        return jsonify({"status": "error", "message": "Invalid node id"}), 400
-    waypoints  = get_waypoints(start, target)
-    route      = [start] + waypoints
-    return jsonify({"start": start, "target": target,
-                    "route": route,
-                    "route_str": " → ".join(str(n) for n in route)}), 200
-
-
 # ==================================================
 # MAIN
 # ==================================================
@@ -563,18 +451,9 @@ if __name__ == "__main__":
     print("  POST /command              {start, target}")
     print("  GET  /status")
     print("  POST /stop")
-    print("  POST /command/reset-home   → Reset AMCL to Node 1")
+    print("  POST /command/reset-home   -> Reset AMCL to Node 1")
     print("  POST /amcl/set-pose        {x, y, yaw_deg}")
     print("  GET  /amcl/status")
     print("  GET  /nodes")
     print("  POST /nodes/<id>           {x, y, yaw_deg}")
-    print("  POST /route/preview        {start, target}  ← dry-run routing")
-    print()
-    print("  Routing rules:")
-    print("    1 → 2  :  1 → 0 → 2")
-    print("    1 → 3  :  1 → 0 → 3")
-    print("    2 → 1  :  2 → 0 → 1")
-    print("    3 → 1  :  3 → 0 → 1")
-    print("    2 → 3  :  2 → 3  (direct)")
-    print("    3 → 2  :  3 → 2  (direct)")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
