@@ -1,269 +1,440 @@
-//run
-# Terminal 1
-roscore
+#!/usr/bin/env python3
+import rospy
+import math
+import signal
+import sys
+import threading
+from geometry_msgs.msg import Twist, PoseWithCovarianceStamped, PoseStamped
+from nav_msgs.msg import Odometry
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from actionlib_msgs.msg import GoalStatus
+from tf.transformations import euler_from_quaternion
+from flask import Flask, request, jsonify
+import actionlib
 
-# Terminal 2
-sudo chmod 666 /dev/ttyUSB1
-rosrun talker talker _serial_port:=/dev/ttyUSB1
+# ==================================================
+# GLOBAL SETTINGS & STATE
+# ==================================================
+is_navigating      = False
+current_location   = 1
+current_progress   = 0
+velocity_publisher = None
 
-# Terminal 3
-sudo chmod 666 /dev/ttyUSB0
-rosrun kobuki_driver simple_keyop
+# ==================================================
+# NODE MAP
+# ==================================================
+NODE_POSES = {
+    1: {"x":  2.379, "y":  -0.639, "yaw_rad":  0.012},
+    2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.002},
+    3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.002},
 
-# Terminal 4
-roslaunch my_robot slam.launch
+    # Waypoint มุมโค้ง — ใช้ yaw ตามทิศที่จะออกจากมุม
+    # corner_fwd : ขาไป  (Node1→2, Node1→3) เลี้ยวซ้ายขึ้น yaw = 90°
+    # corner_bwd : ขากลับ (Node2→1, Node3→1) เลี้ยวขวาลง  yaw = 0°
+    "corner_fwd": {"x": 9.777, "y": -0.265, "yaw_rad":  math.pi / 2},  # 90° หันขึ้น
+    "corner_bwd": {"x": 9.777, "y": -0.265, "yaw_rad":  0.012},         # 0°  หันไปซ้าย
+}
 
-# Terminal 5 — 
-rviz
-
-
-6
-rosrun teleop_twist_keyboard teleop_twist_keyboard.py \
-    cmd_vel:=/mobile_base/commands/velocity \
-    _speed:=0.15 _turn:=0.2
-
-
-
-# 1
-rostopic echo /scan | grep -E "frame_id|angle_min|angle_max|angle_increment" -m 4
-
-# 2  
-rosrun tf tf_echo map laser_link
-
-# 3
-rostopic hz /scan
-
-
-# Terminal 1
-roscore
-
-# Terminal 2
-sudo chmod 666 /dev/ttyUSB1
-rosrun talker talker _serial_port:=/dev/ttyUSB1
-
-# Terminal 3
-sudo chmod 666 /dev/ttyUSB0
-rosrun kobuki_driver simple_keyop
-
-# Terminal 4
-roslaunch kobuki_node minimal.launch
-
-# Terminal 5
-rviz
-
-<launch>
-
-<launch>
-  <!-- Bridge between base_footprint and base_link -->
-  <node pkg="tf" type="static_transform_publisher" 
-        name="footprint_to_base"
-        args="0 0 0 0 0 0 base_footprint base_link 50"/>
-
-  <!-- Laser TF — matches slam.launch exactly -->
-  <node pkg="tf" type="static_transform_publisher" 
-        name="base_to_laser"
-        args="0 0 0.2 0 0 0 -1.5708 base_link laser_link 50"/>
-
-  <!-- map_server -->
-  <node pkg="map_server" type="map_server" name="map_server"
-        args="/home/ubutu2004/map/final.yaml"
-        output="screen"/>
-
-  <!-- AMCL -->
-  <node pkg="amcl" type="amcl" name="amcl" output="screen"
-        respawn="true">
-    <param name="use_map_topic"       value="false"/>
-    <param name="tf_broadcast"        value="true"/>
-    <param name="odom_model_type"     value="diff"/>
-    <param name="odom_frame_id"       value="odom"/>
-    <param name="base_frame_id"       value="base_footprint"/>
-    <param name="global_frame_id"     value="map"/>
-    <param name="laser_model_type"    value="likelihood_field"/>
-    <param name="min_particles"       value="500"/>
-    <param name="max_particles"       value="3000"/>
-    <param name="laser_max_range"     value="7.0"/>
-    <param name="laser_max_beams"     value="90"/>
-    <param name="update_min_d"        value="0.05"/>
-    <param name="update_min_a"        value="0.1"/>
-    <param name="transform_tolerance" value="1.0"/>
-    <param name="initial_pose_x"      value="0.0"/>
-    <param name="initial_pose_y"      value="0.0"/>
-    <param name="initial_pose_a"      value="0.0"/>
-    <param name="gui_publish_rate"    value="10.0"/>
-    <param name="recovery_alpha_slow" value="0.001"/>
-    <param name="recovery_alpha_fast" value="0.1"/>
-  </node>
-
-  <node pkg="move_base" type="move_base" name="move_base" output="screen">
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="global_costmap"/>
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="local_costmap"/>
-    <rosparam file="$(find my_robot)/config/global_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/local_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
-              command="load"/>
-    <param name="base_global_planner"  value="navfn/NavfnROS"/>
-    <param name="base_local_planner"   value="base_local_planner/TrajectoryPlannerROS"/>
-    <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
-
-    <!-- ADD THESE to stop spinning -->
-    <param name="controller_frequency"    value="5.0"/>
-    <param name="planner_patience"        value="5.0"/>
-    <param name="controller_patience"     value="15.0"/>
-    <param name="conservative_reset_dist" value="3.0"/>
-    <param name="recovery_behavior_enabled" value="false"/>
-    <param name="clearing_rotation_allowed" value="false"/>
-</node>
-
-</launch>
-
-TrajectoryPlannerROS:
-  # Speed settings
-  max_vel_x: 0.3          # increase from default
-  min_vel_x: 0.1          # minimum forward speed
-  max_vel_theta: 0.8      # max rotation speed
-  min_in_place_vel_theta: 0.4  # min rotation speed
-  
-  # Acceleration
-  acc_lim_x: 0.5
-  acc_lim_theta: 1.0
-  
-  # Path following
-  holonomic_robot: false
-  sim_time: 1.5           # how far ahead to simulate
-  vx_samples: 10          # speed samples
-  vtheta_samples: 20      # rotation samples
-  
-  # Goal tolerance
-  xy_goal_tolerance: 0.3  # stop within 30cm of goal
-  yaw_goal_tolerance: 0.5 # stop within 0.5 rad of goal angle
-  
-  # Path tolerance — KEY for stopping spin
-  pdist_scale: 0.9        # how much to follow path
-  gdist_scale: 0.6        # how much to go toward goal
-  occdist_scale: 0.1      # obstacle avoidance weight
-  
-  # Stop oscillation/spinning
-  oscillation_reset_dist: 0.1
-  escape_vel: -0.1
-  escape_reset_dist: 0.1
-  escape_reset_theta: 0.1
+# ==================================================
+# PATHS — กำหนดลำดับ waypoint แต่ละเส้นทาง
+# ==================================================
+PATHS = {
+    (1, 2): ["corner_fwd", 2],
+    (1, 3): ["corner_fwd", 3],
+    (2, 1): ["corner_bwd", 1],
+    (3, 1): ["corner_bwd", 1],
+    # เส้นทางเดียวกัน ไม่ผ่านมุม
+    (2, 3): [3],
+    (3, 2): [2],
+}
 
 
+def signal_handler(sig, frame):
+    print("\n[INFO] Ctrl+C — Stopping Robot.")
+    if velocity_publisher:
+        velocity_publisher.publish(Twist())
+    rospy.signal_shutdown("User Interrupted")
+    sys.exit(0)
 
-<launch>
-  <!-- Bridge between base_footprint and base_link -->
-  <node pkg="tf" type="static_transform_publisher" 
-        name="footprint_to_base"
-        args="0 0 0 0 0 0 base_footprint base_link 50"/>
-
-  <!-- Laser TF — matches slam.launch exactly -->
-  <node pkg="tf" type="static_transform_publisher" 
-        name="base_to_laser"
-        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
-
-  <!-- map_server -->
-  <node pkg="map_server" type="map_server" name="map_server"
-        args="/home/ubutu2004/map/final.yaml"
-        output="screen"/>
-
-  <!-- AMCL -->
-  <node pkg="amcl" type="amcl" name="amcl" output="screen"
-        respawn="true">
-    <param name="use_map_topic"       value="false"/>
-    <param name="tf_broadcast"        value="true"/>
-    <param name="odom_model_type"     value="diff"/>
-    <param name="odom_frame_id"       value="odom"/>
-    <param name="base_frame_id"       value="base_footprint"/>
-    <param name="global_frame_id"     value="map"/>
-    <param name="laser_model_type"    value="likelihood_field"/>
-    <param name="min_particles"       value="500"/>
-    <param name="max_particles"       value="2000"/>
-    <param name="laser_max_range"     value="7.0"/>
-    <param name="laser_max_beams"     value="90"/>
-    <param name="update_min_d"        value="0.1"/>
-    <param name="update_min_a"        value="0.2"/>
-    <param name="transform_tolerance" value="1.0"/>
-    <param name="initial_pose_x"      value="0.0"/>
-    <param name="initial_pose_y"      value="0.0"/>
-    <param name="initial_pose_a"      value="0.0"/>
-    <param name="gui_publish_rate"    value="10.0"/>
-    <param name="recovery_alpha_slow" value="0.001"/>
-    <param name="recovery_alpha_fast" value="0.1"/>
-  </node>
-
-  <node pkg="move_base" type="move_base" name="move_base" output="screen">
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="global_costmap"/>
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="local_costmap"/>
-    <rosparam file="$(find my_robot)/config/global_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/local_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
-              command="load"/>
-    <param name="base_global_planner"  value="navfn/NavfnROS"/>
-    <param name="base_local_planner"   value="base_local_planner/TrajectoryPlannerROS"/>
-    <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
-
-    <!-- ADD THESE to stop spinning -->
-    <param name="controller_frequency"    value="5.0"/>
-    <param name="planner_patience"        value="10.0"/>
-    <param name="controller_patience"     value="20.0"/>
-    <param name="conservative_reset_dist" value="3.0"/>
-    <param name="recovery_behavior_enabled" value="false"/>
-    <param name="clearing_rotation_allowed" value="false"/>
-    <param name="planner_frequency"    value="1.0"/>
-    
-</node>
+signal.signal(signal.SIGINT, signal_handler)
 
 
-</launch>
+# ==================================================
+# PID CONTROLLER
+# ==================================================
+class PID:
+    def __init__(self, kp, ki, kd, min_val, max_val):
+        self.kp, self.ki, self.kd = kp, ki, kd
+        self.min_val, self.max_val = min_val, max_val
+        self.integral, self.last_error = 0.0, 0.0
+
+    def compute(self, error, dt):
+        self.integral  += error * dt
+        derivative      = (error - self.last_error) / dt
+        output          = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
+        self.last_error = error
+        return max(min(output, self.max_val), self.min_val)
 
 
-#!/bin/bash
+# ==================================================
+# ROBOT CONTROL CLASS
+# ==================================================
+class OdomRobot:
+    def __init__(self, pub):
+        global is_navigating
+        rospy.init_node("odom_robot")
+        self.pub = pub
 
-# === Permissions ===
-sudo chmod 666 /dev/ttyUSB1
+        # --- Odometry ---
+        self.raw_x, self.raw_y, self.raw_yaw = 0.0, 0.0, 0.0
+        self.x, self.y, self.yaw             = 0.0, 0.0, 0.0
+        self.offset_x, self.offset_y, self.offset_yaw = 0.0, 0.0, 0.0
 
-# === Start tmux session ===
-SESSION="ros_kobuki"
+        # --- AMCL ---
+        self.amcl_x, self.amcl_y, self.amcl_yaw = 0.0, 0.0, 0.0
+        self.amcl_covariance = 1.0
+        self.amcl_ready      = False
+        self.amcl_lock       = threading.Lock()
 
-# ถ้า session มีอยู่แล้ว ให้ attach เลย
-tmux has-session -t $SESSION 2>/dev/null
-if [ $? == 0 ]; then
-  echo "Session '$SESSION' มีอยู่แล้ว กำลัง attach..."
-  tmux attach-session -t $SESSION
-  exit 0
-fi
+        # --- move_base ---
+        rospy.loginfo("[move_base] Connecting...")
+        self.move_base_client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
+        mb_ok = self.move_base_client.wait_for_server(timeout=rospy.Duration(10.0))
+        rospy.loginfo("[move_base] Connected!" if mb_ok else "[move_base] NOT available.")
 
-# สร้าง session ใหม่ + window แรก (roscore)
-tmux new-session -d -s $SESSION -n "roscore"
-tmux send-keys -t $SESSION:0 "roscore" Enter
+        # --- Subscribers ---
+        rospy.Subscriber("/odom",      Odometry,                  self.odom_callback)
+        rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.amcl_callback)
 
-# Window 1: talker
-tmux new-window -t $SESSION:1 -n "talker"
-tmux send-keys -t $SESSION:1 "sleep 2 && rosrun talker talker _serial_port:=/dev/ttyUSB1" Enter
+        self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1, min_val=-0.4, max_val=0.4)
+        self.pid_rotate   = PID(kp=1.0, ki=0.01,  kd=0.1, min_val=-0.3, max_val=0.3)
 
-# Window 2: keyop
-tmux new-window -t $SESSION:2 -n "keyop"
-tmux send-keys -t $SESSION:2 "sleep 3 && rosrun kobuki_driver simple_keyop" Enter
+        rospy.loginfo("Waiting for odom...")
+        rospy.wait_for_message("/odom", Odometry)
+        rospy.sleep(1)
 
-# Window 3: kobuki_node
-tmux new-window -t $SESSION:3 -n "kobuki"
-tmux send-keys -t $SESSION:3 "sleep 3 && roslaunch kobuki_node minimal.launch" Enter
+        self._wait_for_amcl(timeout=10.0)
+        self._set_amcl_to_node(1)
+        rospy.loginfo("=== READY: Start at Node 1 ===")
 
-# Window 4: rviz
-tmux new-window -t $SESSION:4 -n "rviz"
-tmux send-keys -t $SESSION:4 "sleep 4 && rviz" Enter
+    # --------------------------------------------------
+    # CALLBACKS
+    # --------------------------------------------------
+    def odom_callback(self, msg):
+        self.raw_x = msg.pose.pose.position.x
+        self.raw_y = msg.pose.pose.position.y
+        q = msg.pose.pose.orientation
+        (_, _, yaw) = euler_from_quaternion([q.x, q.y, q.z, q.w])
+        self.raw_yaw = yaw
+        diff_yaw = self.raw_yaw - self.offset_yaw
+        self.x   = self.raw_x - self.offset_x
+        self.y   = self.raw_y - self.offset_y
+        self.yaw = math.atan2(math.sin(diff_yaw), math.cos(diff_yaw))
 
-# Attach ไปที่ session
-tmux attach-session -t $SESSION
+    def amcl_callback(self, msg):
+        with self.amcl_lock:
+            self.amcl_x = msg.pose.pose.position.x
+            self.amcl_y = msg.pose.pose.position.y
+            q = msg.pose.pose.orientation
+            (_, _, self.amcl_yaw) = euler_from_quaternion([q.x, q.y, q.z, q.w])
+            cov = msg.pose.covariance
+            self.amcl_covariance = (cov[0] + cov[7]) / 2.0
+            if self.amcl_covariance < 0.05:
+                self.amcl_ready = True
+
+    # --------------------------------------------------
+    # AMCL HELPERS
+    # --------------------------------------------------
+    def _wait_for_amcl(self, timeout=10.0):
+        rospy.loginfo("Waiting for /amcl_pose (%.0fs)..." % timeout)
+        try:
+            rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped, timeout=timeout)
+            rospy.loginfo("[AMCL] Running.")
+        except rospy.ROSException:
+            rospy.logwarn("[AMCL] Not received. Odometry only.")
+
+    def set_initial_pose(self, x, y, yaw_rad):
+        pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped,
+                              queue_size=1, latch=True)
+        rospy.sleep(0.5)
+        msg = PoseWithCovarianceStamped()
+        msg.header.frame_id = "map"
+        msg.header.stamp    = rospy.Time.now()
+        msg.pose.pose.position.x    = x
+        msg.pose.pose.position.y    = y
+        msg.pose.pose.orientation.z = math.sin(yaw_rad / 2.0)
+        msg.pose.pose.orientation.w = math.cos(yaw_rad / 2.0)
+        cov = [0.0] * 36
+        cov[0]  = 0.25
+        cov[7]  = 0.25
+        cov[35] = 0.068
+        msg.pose.covariance = cov
+        pub.publish(msg)
+        rospy.loginfo(f"[AMCL] Pose → x={x:.2f} y={y:.2f} yaw={math.degrees(yaw_rad):.1f}°")
+
+    def _set_amcl_to_node(self, node_id):
+        if node_id not in NODE_POSES:
+            return
+        p = NODE_POSES[node_id]
+        self.set_initial_pose(p["x"], p["y"], p["yaw_rad"])
+        rospy.loginfo(f"[AMCL] Reset to Node {node_id}")
+
+    def get_best_pose(self):
+        with self.amcl_lock:
+            if self.amcl_ready and self.amcl_covariance < 0.05:
+                return self.amcl_x, self.amcl_y, self.amcl_yaw, "amcl"
+        return self.x, self.y, self.yaw, "odom"
+
+    # --------------------------------------------------
+    # RESET HOME
+    # --------------------------------------------------
+    def execute_home_sequence(self):
+        global is_navigating, current_location
+        rospy.loginfo("--- Reset to Node 1 ---")
+        is_navigating    = False
+        current_location = 1
+        self.move_base_client.cancel_all_goals()
+        self._set_amcl_to_node(1)
+        rospy.loginfo("--- Reset Done: Node=1 ---")
+
+    # --------------------------------------------------
+    # move_base NAVIGATION
+    # --------------------------------------------------
+    def _build_goal(self, node_id):
+        if node_id not in NODE_POSES:
+            rospy.logerr(f"Node {node_id} not in NODE_POSES")
+            return None
+        p    = NODE_POSES[node_id]
+        goal = MoveBaseGoal()
+        goal.target_pose.header.frame_id = "map"
+        goal.target_pose.header.stamp    = rospy.Time.now()
+        goal.target_pose.pose.position.x = p["x"]
+        goal.target_pose.pose.position.y = p["y"]
+        yr = p["yaw_rad"]
+        goal.target_pose.pose.orientation.z = math.sin(yr / 2.0)
+        goal.target_pose.pose.orientation.w = math.cos(yr / 2.0)
+        return goal
+
+    def navigate_to_node(self, node_id):
+        global is_navigating, current_progress
+
+        goal = self._build_goal(node_id)
+        if goal is None:
+            return False
+
+        p  = NODE_POSES[node_id]
+        tx = p["x"]
+        ty = p["y"]
+        rospy.loginfo(f"[Nav] → Node '{node_id}' ({tx:.2f}, {ty:.2f})")
+
+        self.move_base_client.send_goal(goal)
+        current_progress = 0
+        rate = rospy.Rate(2)
+
+        while not rospy.is_shutdown():
+
+            if not is_navigating:
+                self.move_base_client.cancel_goal()
+                rospy.loginfo("[Nav] Goal cancelled.")
+                return False
+
+            state = self.move_base_client.get_state()
+
+            if state == GoalStatus.SUCCEEDED:
+                current_progress = 100
+                rospy.loginfo(f"[Nav] ✓ Reached '{node_id}'!")
+                return True
+
+            elif state in (GoalStatus.ABORTED, GoalStatus.REJECTED,
+                           GoalStatus.PREEMPTED, GoalStatus.LOST):
+                rospy.logwarn(f"[Nav] Failed. State={state}")
+                return False
+
+            bx, by, _, _ = self.get_best_pose()
+            dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
+            src_pose = NODE_POSES.get(current_location, {"x": bx, "y": by})
+            dist_tot = math.sqrt((tx - src_pose["x"])**2 + (ty - src_pose["y"])**2)
+            if dist_tot > 0.01:
+                current_progress = max(0, min(99,
+                    (1 - dist_rem / dist_tot) * 100))
+
+            rospy.loginfo(f"[Nav] progress={current_progress:.1f}% dist={dist_rem:.2f}m")
+            rate.sleep()
+
+        return False
+
+    def execute_path(self, start, target):
+        """เดินตาม waypoints ที่กำหนดใน PATHS"""
+        global current_location
+
+        # หา waypoint list สำหรับเส้นทางนี้
+        path_key = (start, target)
+        waypoints = PATHS.get(path_key, [target])  # ถ้าไม่มีใน PATHS ไปตรงๆ
+
+        rospy.loginfo(f"[Path] {start} → {target} : waypoints = {waypoints}")
+
+        for wp in waypoints:
+            rospy.loginfo(f"[Path] ➜ Waypoint '{wp}'")
+            success = self.navigate_to_node(wp)
+            if not success:
+                rospy.logwarn(f"[Path] ✗ Failed at waypoint '{wp}'")
+                return False
+            # ถ้า waypoint นี้คือ node จริง (ไม่ใช่ corner) ให้อัป current_location
+            if isinstance(wp, int):
+                current_location = wp
+
+        rospy.loginfo(f"[Path] ✓ Complete: reached Node {target}")
+        return True
 
 
-chmod +x start_ros.sh
-./start_ros.sh
+# ==================================================
+# FLASK API SERVER
+# ==================================================
+app      = Flask(__name__)
+my_robot = None
+
+
+@app.route('/command', methods=['POST'])
+def handle_command():
+    global is_navigating, current_progress
+    data   = request.json or {}
+    start  = data.get('start')
+    target = data.get('target')
+
+    if is_navigating:
+        return jsonify({"status": "error", "message": "Robot is busy"}), 400
+
+    # ตรวจ target เป็น node จริงเท่านั้น (ไม่ใช่ corner)
+    real_nodes = [k for k in NODE_POSES if isinstance(k, int)]
+    if target not in real_nodes:
+        return jsonify({"status": "error",
+                        "message": f"Node {target} not found"}), 400
+
+    def run_and_finish(s, t):
+        global is_navigating, current_location, current_progress
+        current_progress = 0
+        is_navigating    = True
+        success = my_robot.execute_path(s, t)
+        is_navigating = False
+        if success:
+            current_location = t
+
+    threading.Thread(target=run_and_finish, args=(start, target)).start()
+    return jsonify({"status": "starting",
+                    "from_node": start,
+                    "target_node": target,
+                    "waypoints": PATHS.get((start, target), [target])}), 200
+
+
+@app.route('/status', methods=['GET'])
+def get_status():
+    bx, by, byaw, src = my_robot.get_best_pose()
+    return jsonify({
+        "is_navigating":    is_navigating,
+        "current_location": current_location,
+        "current_progress": round(current_progress, 1),
+        "odom_position":    {"x": round(my_robot.x, 3), "y": round(my_robot.y, 3)},
+        "odom_yaw_deg":     round(math.degrees(my_robot.yaw), 2),
+        "amcl_position":    {"x": round(my_robot.amcl_x, 3), "y": round(my_robot.amcl_y, 3)},
+        "amcl_yaw_deg":     round(math.degrees(my_robot.amcl_yaw), 2),
+        "amcl_covariance":  round(my_robot.amcl_covariance, 4),
+        "amcl_ready":       my_robot.amcl_ready,
+        "best_position":    {"x": round(bx, 3), "y": round(by, 3)},
+        "best_yaw_deg":     round(math.degrees(byaw), 2),
+        "pose_source":      src,
+    })
+
+
+@app.route('/stop', methods=['POST', 'GET'])
+def stop_robot():
+    global is_navigating
+    is_navigating = False
+    my_robot.move_base_client.cancel_all_goals()
+    velocity_publisher.publish(Twist())
+    return jsonify({"status": "success", "message": "Stopped"}), 200
+
+
+@app.route('/command/reset-home', methods=['POST'])
+def handle_reset_home():
+    global is_navigating
+    is_navigating = False
+    my_robot.move_base_client.cancel_all_goals()
+    threading.Thread(target=my_robot.execute_home_sequence).start()
+    return jsonify({"status": "success",
+                    "message": "Reset to Node 1"}), 200
+
+
+@app.route('/amcl/set-pose', methods=['POST'])
+def handle_set_pose():
+    data    = request.json or {}
+    x       = float(data.get("x",       0.0))
+    y       = float(data.get("y",       0.0))
+    yaw_deg = float(data.get("yaw_deg", 0.0))
+    yaw_rad = math.radians(yaw_deg)
+    threading.Thread(target=my_robot.set_initial_pose, args=(x, y, yaw_rad)).start()
+    return jsonify({"status": "success",
+                    "message": f"Pose → x={x} y={y} yaw={yaw_deg}°"}), 200
+
+
+@app.route('/amcl/status', methods=['GET'])
+def handle_amcl_status():
+    return jsonify({
+        "amcl_ready":      my_robot.amcl_ready,
+        "amcl_covariance": round(my_robot.amcl_covariance, 4),
+        "amcl_position":   {"x": round(my_robot.amcl_x, 3),
+                            "y": round(my_robot.amcl_y, 3)},
+        "amcl_yaw_deg":    round(math.degrees(my_robot.amcl_yaw), 2),
+        "note":            "covariance < 0.05 = confident"
+    })
+
+
+@app.route('/nodes', methods=['GET'])
+def get_nodes():
+    # แสดงเฉพาะ node จริง (int key)
+    out = {k: {**v, "yaw_deg": round(math.degrees(v["yaw_rad"]), 2)}
+           for k, v in NODE_POSES.items() if isinstance(k, int)}
+    return jsonify({"nodes": out})
+
+
+@app.route('/nodes/<int:node_id>', methods=['POST'])
+def update_node(node_id):
+    data = request.json or {}
+    NODE_POSES[node_id] = {
+        "x":       float(data.get("x",       0.0)),
+        "y":       float(data.get("y",       0.0)),
+        "yaw_rad": math.radians(float(data.get("yaw_deg", 0.0))),
+    }
+    return jsonify({"status": "updated", "node": node_id,
+                    "pose": NODE_POSES[node_id]}), 200
+
+
+@app.route('/paths', methods=['GET'])
+def get_paths():
+    """ดู waypoints ของแต่ละเส้นทาง"""
+    out = {f"{s}→{t}": wps for (s, t), wps in PATHS.items()}
+    return jsonify({"paths": out})
+
+
+# ==================================================
+# MAIN
+# ==================================================
+if __name__ == "__main__":
+    velocity_publisher = rospy.Publisher(
+        '/mobile_base/commands/velocity', Twist, queue_size=10)
+
+    my_robot = OdomRobot(pub=velocity_publisher)
+
+    current_location = 1
+    is_navigating    = False
+
+    print("--- Robot Server Ready on Port 5000 ---")
+    print("  POST /command              {start, target}")
+    print("  GET  /status")
+    print("  POST /stop")
+    print("  POST /command/reset-home   → Reset AMCL to Node 1")
+    print("  POST /amcl/set-pose        {x, y, yaw_deg}")
+    print("  GET  /amcl/status")
+    print("  GET  /nodes")
+    print("  POST /nodes/<id>           {x, y, yaw_deg}")
+    print("  GET  /paths                → ดู waypoints แต่ละเส้นทาง")
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
