@@ -180,8 +180,7 @@ class OdomRobot:
         rospy.sleep(1)
 
         self._wait_for_amcl(timeout=10.0)
-        self._set_amcl_to_node(1)
-        rospy.loginfo("=== READY: Start at Node 1 ===")
+        rospy.loginfo("=== READY ===")
 
     # --------------------------------------------------
     # CALLBACKS
