@@ -24,6 +24,7 @@ velocity_publisher = None
 # NODE MAP
 # ==================================================
 NODE_POSES = {
+    0: {"x":  0.000, "y":   0.000, "yaw_rad":  0.0},   # Home / Origin
     1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.0},
     2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.002},
     3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.002},
@@ -251,16 +252,39 @@ class OdomRobot:
         return self.x, self.y, self.yaw, "odom"
 
     # --------------------------------------------------
-    # RESET HOME
+    # RESET HOME  (Node 0 → Node 1)
     # --------------------------------------------------
     def execute_home_sequence(self):
+        """
+        Reset home sequence:
+          1. Cancel any active goal
+          2. Set AMCL initial pose to Node 0 (origin: 0, 0, 0)
+          3. Navigate from Node 0 → Node 1
+          4. On arrival, mark current_location = 1
+        """
         global is_navigating, current_location
-        rospy.loginfo("--- Reset to Node 1 ---")
-        is_navigating    = False
-        current_location = 1
+
+        rospy.loginfo("--- Reset Home: setting AMCL to Node 0 (origin) ---")
         self.move_base_client.cancel_all_goals()
-        self._set_amcl_to_node(1)
-        rospy.loginfo("--- Reset Done: Node=1 ---")
+        rospy.sleep(0.5)
+
+        # Step 1 — Announce we are at Node 0
+        self._set_amcl_to_node(0)
+        current_location = 0
+        rospy.sleep(1.0)   # let AMCL digest the new pose
+
+        # Step 2 — Navigate to Node 1
+        rospy.loginfo("--- Reset Home: navigating Node 0 → Node 1 ---")
+        is_navigating = True
+        success = self.navigate_to_node(1)
+        is_navigating = False
+
+        if success:
+            current_location = 1
+            rospy.loginfo("--- Reset Home: arrived at Node 1 ✓ ---")
+        else:
+            rospy.logwarn("--- Reset Home: navigation to Node 1 failed ---")
+
 
     # --------------------------------------------------
     # move_base NAVIGATION
@@ -418,11 +442,16 @@ def stop_robot():
 @app.route('/command/reset-home', methods=['POST'])
 def handle_reset_home():
     global is_navigating
-    is_navigating = False
+    if is_navigating:
+        return jsonify({"status": "error", "message": "Robot is busy"}), 400
     my_robot.move_base_client.cancel_all_goals()
     threading.Thread(target=my_robot.execute_home_sequence).start()
-    return jsonify({"status": "success",
-                    "message": "Reset to Node 1"}), 200
+    return jsonify({
+        "status":  "starting",
+        "message": "Reset home: Node 0 (origin) → Node 1",
+        "node_0":  NODE_POSES[0],
+        "node_1":  NODE_POSES[1],
+    }), 200
 
 
 @app.route('/amcl/set-pose', methods=['POST'])
@@ -484,7 +513,7 @@ if __name__ == "__main__":
     print("  POST /command              {start, target}")
     print("  GET  /status")
     print("  POST /stop")
-    print("  POST /command/reset-home   → Reset AMCL to Node 1")
+    print("  POST /command/reset-home   → AMCL to Node 0, then navigate to Node 1")
     print("  POST /amcl/set-pose        {x, y, yaw_deg}")
     print("  GET  /amcl/status")
     print("  GET  /nodes")
