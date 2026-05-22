@@ -1,11 +1,33 @@
 #!/usr/bin/env python3
+"""
+Robot Navigation with Human Obstacle Detection & Dodge
+=======================================================
+Uses LiDAR (/scan) to detect humans (or any obstacle) in front of
+the robot and automatically dodge left/right while navigating.
+
+Detection zones (configurable at top of file):
+  - FRONT zone  : obstacle triggers dodge
+  - SIDE zones  : used to decide which way to dodge
+  - CLEAR zone  : robot resumes normal navigation
+
+Dodge logic:
+  1. Obstacle detected → pause move_base goal
+  2. Check left / right side for free space
+  3. Strafe / arc toward the free side
+  4. Re-check front until clear
+  5. Resume original move_base goal
+"""
+
 import rospy
 import math
 import signal
 import sys
 import threading
-from geometry_msgs.msg import Twist, PoseWithCovarianceStamped, PoseStamped
+import time
+
+from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import LaserScan
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from tf.transformations import euler_from_quaternion
@@ -21,12 +43,34 @@ current_progress   = 0
 velocity_publisher = None
 
 # ==================================================
+# OBSTACLE / DODGE SETTINGS  (tune these)
+# ==================================================
+
+# Front detection cone: ±FRONT_HALF_DEG degrees from robot heading
+FRONT_HALF_DEG   = 30          # degrees either side of forward
+
+# Distance thresholds (metres)
+OBSTACLE_DIST    = 0.8         # obstacle closer than this → start dodge
+CLEAR_DIST       = 1.2         # obstacle must be farther than this → resume
+SIDE_CHECK_DIST  = 0.6         # if side is blocked closer than this → not safe
+
+# Dodge speed  (m/s and rad/s)
+DODGE_LINEAR_X   = 0.15        # forward creep while dodging
+DODGE_ANGULAR_Z  = 0.45        # rotation during dodge
+
+# How long (s) to keep rotating during one dodge step
+DODGE_STEP_DUR   = 0.6
+
+# How many times to retry dodge before giving up
+MAX_DODGE_RETRY  = 8
+
+# ==================================================
 # NODE MAP
 # ==================================================
 NODE_POSES = {
     1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.0},
-    2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.002},
-    3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.002},
+    2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.0},
+    3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.0},
 }
 
 
@@ -38,87 +82,6 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
-
-
-# ==================================================
-# MOVEMENT DIRECTION LOGGER
-# ==================================================
-class MovementLogger:
-    """
-    Infers and logs robot movement direction (Forward / Backward / Turn Left /
-    Turn Right / Rotating / Stationary) by comparing consecutive poses.
-
-    Thresholds (tune to your robot's speed):
-        LINEAR_THRESHOLD  – minimum displacement (m) to be "moving"
-        ANGULAR_THRESHOLD – minimum yaw change (rad) to be "rotating"
-        FORWARD_DOT_THRESHOLD – cosine threshold to decide fwd vs bwd
-                                (positive = same general heading → forward)
-    """
-
-    LINEAR_THRESHOLD      = 0.02   # metres per sample
-    ANGULAR_THRESHOLD     = 0.02   # radians per sample
-    FORWARD_DOT_THRESHOLD = 0.0    # dot ≥ 0 → forward, < 0 → backward
-
-    def __init__(self):
-        self.prev_x   = None
-        self.prev_y   = None
-        self.prev_yaw = None
-        self.last_logged_direction = None   # suppress repeated identical logs
-
-    def reset(self):
-        self.prev_x   = None
-        self.prev_y   = None
-        self.prev_yaw = None
-        self.last_logged_direction = None
-
-    def update(self, x, y, yaw):
-        """Call this every loop iteration. Returns direction string or None."""
-        if self.prev_x is None:
-            self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
-            return None
-
-        dx  = x   - self.prev_x
-        dy  = y   - self.prev_y
-        dyaw = math.atan2(math.sin(yaw - self.prev_yaw),
-                          math.cos(yaw - self.prev_yaw))  # wrapped diff
-
-        lin_dist = math.sqrt(dx**2 + dy**2)
-        moving   = lin_dist  > self.LINEAR_THRESHOLD
-        rotating = abs(dyaw) > self.ANGULAR_THRESHOLD
-
-        direction = None
-
-        if moving and rotating:
-            # Arcing turn — report primary rotation side
-            direction = "↺ Turn Left"  if dyaw > 0 else "↻ Turn Right"
-
-        elif moving:
-            # Straight motion — check if displacement aligns with heading
-            # heading vector from previous yaw
-            hx = math.cos(self.prev_yaw)
-            hy = math.sin(self.prev_yaw)
-            # normalise displacement
-            nx = dx / lin_dist
-            ny = dy / lin_dist
-            dot = nx * hx + ny * hy
-            direction = "⬆ Forward" if dot >= self.FORWARD_DOT_THRESHOLD else "⬇ Backward"
-
-        elif rotating:
-            direction = "↺ Turn Left"  if dyaw > 0 else "↻ Turn Right"
-
-        else:
-            direction = "◼ Stationary"
-
-        # Update previous pose
-        self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
-
-        # Only log when direction changes (avoids log spam)
-        if direction != self.last_logged_direction:
-            rospy.loginfo(f"[Move] {direction}  "
-                          f"Δpos={lin_dist*100:.1f}cm  Δyaw={math.degrees(dyaw):.1f}°")
-            self.last_logged_direction = direction
-
-        return direction
 
 
 # ==================================================
@@ -136,6 +99,90 @@ class PID:
         output          = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
         self.last_error = error
         return max(min(output, self.max_val), self.min_val)
+
+
+# ==================================================
+# LASER SCAN ANALYSER
+# ==================================================
+class ScanAnalyser:
+    """
+    Subscribes to /scan and answers:
+      - is_obstacle_front()  → bool
+      - is_side_clear(side)  → bool  side='left'|'right'
+      - min_front_dist()     → float (metres)
+    """
+
+    def __init__(self):
+        self._lock      = threading.Lock()
+        self._ranges    = []
+        self._angle_min = 0.0
+        self._angle_inc = 0.0
+        self._ready     = False
+
+        rospy.Subscriber("/scan", LaserScan, self._cb, queue_size=1)
+        rospy.loginfo("[Scan] Waiting for /scan …")
+        rospy.wait_for_message("/scan", LaserScan, timeout=10.0)
+        rospy.loginfo("[Scan] Ready.")
+
+    def _cb(self, msg):
+        with self._lock:
+            self._ranges    = list(msg.ranges)
+            self._angle_min = msg.angle_min
+            self._angle_inc = msg.angle_increment
+            self._ready     = True
+
+    def _get_sector_min(self, angle_from_deg, angle_to_deg):
+        """Return minimum range in a sector (degrees, robot-frame)."""
+        with self._lock:
+            if not self._ready or not self._ranges:
+                return float('inf')
+            r      = list(self._ranges)
+            a_min  = self._angle_min
+            a_inc  = self._angle_inc
+
+        af = math.radians(angle_from_deg)
+        at = math.radians(angle_to_deg)
+
+        values = []
+        for i, v in enumerate(r):
+            angle = a_min + i * a_inc
+            if af <= angle <= at:
+                if not math.isnan(v) and not math.isinf(v) and v > 0.05:
+                    values.append(v)
+
+        return min(values) if values else float('inf')
+
+    def min_front_dist(self):
+        return self._get_sector_min(-FRONT_HALF_DEG, FRONT_HALF_DEG)
+
+    def is_obstacle_front(self):
+        return self.min_front_dist() < OBSTACLE_DIST
+
+    def is_front_clear(self):
+        return self.min_front_dist() > CLEAR_DIST
+
+    def left_min_dist(self):
+        # 45°→135° (left side of robot)
+        return self._get_sector_min(45, 135)
+
+    def right_min_dist(self):
+        # -135°→-45° (right side of robot)
+        return self._get_sector_min(-135, -45)
+
+    def best_dodge_side(self):
+        """
+        Returns 'left', 'right', or 'back' based on which side has more free space.
+        """
+        ld = self.left_min_dist()
+        rd = self.right_min_dist()
+        rospy.loginfo(f"[Dodge] left={ld:.2f}m  right={rd:.2f}m")
+
+        if ld > SIDE_CHECK_DIST and ld >= rd:
+            return 'left'
+        elif rd > SIDE_CHECK_DIST and rd > ld:
+            return 'right'
+        else:
+            return 'back'   # both sides blocked → back up a little
 
 
 # ==================================================
@@ -158,11 +205,17 @@ class OdomRobot:
         self.amcl_ready      = False
         self.amcl_lock       = threading.Lock()
 
-        # --- Movement Logger ---
-        self.movement_logger = MovementLogger()
+        # --- Laser scan analyser ---
+        self.scan = ScanAnalyser()
+
+        # --- Dodge state ---
+        self._dodging          = False
+        self._dodge_lock       = threading.Lock()
+        self.last_obstacle_at  = None   # 'front' | None
+        self.obstacle_status   = "clear"  # human-readable for /status
 
         # --- move_base ---
-        rospy.loginfo("[move_base] Connecting...")
+        rospy.loginfo("[move_base] Connecting …")
         self.move_base_client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         mb_ok = self.move_base_client.wait_for_server(timeout=rospy.Duration(10.0))
         rospy.loginfo("[move_base] Connected!" if mb_ok else "[move_base] NOT available.")
@@ -174,7 +227,7 @@ class OdomRobot:
         self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1, min_val=-0.4, max_val=0.4)
         self.pid_rotate   = PID(kp=1.0, ki=0.01,  kd=0.1, min_val=-0.3, max_val=0.3)
 
-        rospy.loginfo("Waiting for odom...")
+        rospy.loginfo("Waiting for odom …")
         rospy.wait_for_message("/odom", Odometry)
         rospy.sleep(1)
 
@@ -211,7 +264,7 @@ class OdomRobot:
     # AMCL HELPERS
     # --------------------------------------------------
     def _wait_for_amcl(self, timeout=10.0):
-        rospy.loginfo("Waiting for /amcl_pose (%.0fs)..." % timeout)
+        rospy.loginfo("Waiting for /amcl_pose (%.0fs) …" % timeout)
         try:
             rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped, timeout=timeout)
             rospy.loginfo("[AMCL] Running.")
@@ -263,7 +316,100 @@ class OdomRobot:
         rospy.loginfo("--- Reset Done: Node=1 ---")
 
     # --------------------------------------------------
-    # move_base NAVIGATION
+    # LOW-LEVEL CMD_VEL HELPERS
+    # --------------------------------------------------
+    def _send_vel(self, linear_x=0.0, angular_z=0.0, duration=0.0):
+        """Publish a Twist for `duration` seconds (blocking)."""
+        cmd = Twist()
+        cmd.linear.x  = linear_x
+        cmd.angular.z = angular_z
+        if duration <= 0:
+            self.pub.publish(cmd)
+            return
+        end = time.time() + duration
+        rate = rospy.Rate(20)
+        while time.time() < end and not rospy.is_shutdown():
+            self.pub.publish(cmd)
+            rate.sleep()
+
+    def _stop(self):
+        self.pub.publish(Twist())
+
+    # --------------------------------------------------
+    # DODGE BEHAVIOUR
+    # --------------------------------------------------
+    def _dodge_obstacle(self):
+        """
+        Called when an obstacle is detected in the front zone.
+        Pauses move_base, manoeuvres around the obstacle,
+        then re-sends the same goal so move_base re-plans.
+
+        Returns True if the front is now clear, False if gave up.
+        """
+        with self._dodge_lock:
+            if self._dodging:
+                return False
+            self._dodging = True
+
+        try:
+            rospy.logwarn("[Dodge] Obstacle detected! Cancelling move_base goal …")
+            self.obstacle_status = "blocked"
+            self.move_base_client.cancel_all_goals()
+            self._stop()
+            rospy.sleep(0.3)
+
+            for attempt in range(1, MAX_DODGE_RETRY + 1):
+                if not is_navigating:
+                    rospy.loginfo("[Dodge] Navigation cancelled externally.")
+                    return False
+
+                if self.scan.is_front_clear():
+                    rospy.loginfo(f"[Dodge] Front clear after {attempt-1} steps.")
+                    self.obstacle_status = "clear"
+                    return True
+
+                side = self.scan.best_dodge_side()
+                dist = self.scan.min_front_dist()
+                rospy.logwarn(
+                    f"[Dodge] Attempt {attempt}/{MAX_DODGE_RETRY} | "
+                    f"front={dist:.2f}m | dodge→{side}"
+                )
+
+                if side == 'left':
+                    # Arc left: rotate CCW while creeping forward
+                    self._send_vel(
+                        linear_x=DODGE_LINEAR_X,
+                        angular_z=+DODGE_ANGULAR_Z,
+                        duration=DODGE_STEP_DUR
+                    )
+                elif side == 'right':
+                    # Arc right: rotate CW while creeping forward
+                    self._send_vel(
+                        linear_x=DODGE_LINEAR_X,
+                        angular_z=-DODGE_ANGULAR_Z,
+                        duration=DODGE_STEP_DUR
+                    )
+                else:
+                    # Both sides blocked → back up slowly
+                    rospy.logwarn("[Dodge] Both sides blocked — backing up!")
+                    self._send_vel(
+                        linear_x=-0.15,
+                        angular_z=0.0,
+                        duration=0.8
+                    )
+
+                self._stop()
+                rospy.sleep(0.2)
+
+            rospy.logerr("[Dodge] Gave up after max retries.")
+            self.obstacle_status = "stuck"
+            return False
+
+        finally:
+            self._dodging = False
+
+    # --------------------------------------------------
+    # move_base NAVIGATION  (with obstacle watch-loop)
     # --------------------------------------------------
     def _build_goal(self, node_id):
         if node_id not in NODE_POSES:
@@ -292,45 +438,63 @@ class OdomRobot:
         rospy.loginfo(f"[Nav] → Node {target_node} ({tx:.2f}, {ty:.2f})")
 
         self.move_base_client.send_goal(goal)
-        current_progress = 0
-
-        # Reset movement logger for fresh direction tracking
-        self.movement_logger.reset()
-        rospy.loginfo("[Move] Direction logging started.")
-
-        rate = rospy.Rate(2)  # 2 Hz sampling — enough to detect direction changes
+        current_progress     = 0
+        self.obstacle_status = "clear"
+        rate = rospy.Rate(5)   # 5 Hz check loop
 
         while not rospy.is_shutdown():
 
+            # ── External cancel ──────────────────────────────────────────
             if not is_navigating:
                 self.move_base_client.cancel_goal()
-                rospy.loginfo("[Nav] Goal cancelled.")
-                rospy.loginfo("[Move] Direction logging stopped.")
+                rospy.loginfo("[Nav] Goal cancelled externally.")
+                self._stop()
                 return False
 
+            # ── Obstacle check ───────────────────────────────────────────
+            if self.scan.is_obstacle_front() and not self._dodging:
+                dist = self.scan.min_front_dist()
+                rospy.logwarn(
+                    f"[Nav] ⚠ Obstacle at {dist:.2f}m — starting dodge …"
+                )
+                # Run dodge in same thread (blocks until clear or gave up)
+                cleared = self._dodge_obstacle()
+
+                if not is_navigating:
+                    return False
+
+                if cleared:
+                    # Re-send the original goal so move_base re-plans
+                    rospy.loginfo("[Nav] Obstacle cleared — re-sending goal …")
+                    goal.target_pose.header.stamp = rospy.Time.now()
+                    self.move_base_client.send_goal(goal)
+                    self.obstacle_status = "clear"
+                else:
+                    rospy.logerr("[Nav] Could not clear obstacle. Aborting.")
+                    self._stop()
+                    return False
+
+            # ── Goal state check ─────────────────────────────────────────
             state = self.move_base_client.get_state()
 
             if state == GoalStatus.SUCCEEDED:
-                current_progress = 100
+                current_progress     = 100
+                self.obstacle_status = "clear"
                 rospy.loginfo(f"[Nav] ✓ Reached Node {target_node}!")
-                rospy.loginfo("[Move] Direction logging stopped — destination reached.")
                 return True
 
             elif state in (GoalStatus.ABORTED, GoalStatus.REJECTED,
                            GoalStatus.PREEMPTED, GoalStatus.LOST):
-                rospy.logwarn(f"[Nav] Failed. State={state}")
-                rospy.loginfo("[Move] Direction logging stopped — navigation failed.")
+                if self._dodging:
+                    rate.sleep()
+                    continue
+                rospy.logwarn(f"[Nav] move_base failed. State={state}")
                 return False
 
-            # ── Best pose for logging (AMCL when confident, else odometry) ──
-            bx, by, byaw, pose_src = self.get_best_pose()
-
-            # ── Log movement direction ──
-            self.movement_logger.update(bx, by, byaw)
-
-            # ── Progress estimate ──
+            # ── Progress update ──────────────────────────────────────────
+            bx, by, _, _ = self.get_best_pose()
             dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
-            src = NODE_POSES.get(current_location, {"x": bx, "y": by})
+            src      = NODE_POSES.get(current_location, {"x": bx, "y": by})
             dist_tot = math.sqrt((tx - src["x"])**2 + (ty - src["y"])**2)
             if dist_tot > 0.01:
                 current_progress = max(0, min(99,
@@ -339,8 +503,8 @@ class OdomRobot:
             rospy.loginfo(
                 f"[Nav] progress={current_progress:.1f}%  "
                 f"dist={dist_rem:.2f}m  "
-                f"pos=({bx:.2f},{by:.2f})  "
-                f"src={pose_src}"
+                f"front={self.scan.min_front_dist():.2f}m  "
+                f"obstacle={self.obstacle_status}"
             )
             rate.sleep()
 
@@ -394,15 +558,17 @@ def get_status():
         "current_progress": round(current_progress, 1),
         "odom_position":    {"x": round(my_robot.x, 3), "y": round(my_robot.y, 3)},
         "odom_yaw_deg":     round(math.degrees(my_robot.yaw), 2),
-        "amcl_position":    {"x": round(my_robot.amcl_x, 3),
-                             "y": round(my_robot.amcl_y, 3)},
+        "amcl_position":    {"x": round(my_robot.amcl_x, 3), "y": round(my_robot.amcl_y, 3)},
         "amcl_yaw_deg":     round(math.degrees(my_robot.amcl_yaw), 2),
         "amcl_covariance":  round(my_robot.amcl_covariance, 4),
         "amcl_ready":       my_robot.amcl_ready,
         "best_position":    {"x": round(bx, 3), "y": round(by, 3)},
         "best_yaw_deg":     round(math.degrees(byaw), 2),
         "pose_source":      src,
-        "current_direction": my_robot.movement_logger.last_logged_direction,
+        # --- NEW: obstacle info ---
+        "obstacle_status":  my_robot.obstacle_status,
+        "front_dist_m":     round(my_robot.scan.min_front_dist(), 3),
+        "is_dodging":       my_robot._dodging,
     })
 
 
@@ -468,6 +634,51 @@ def update_node(node_id):
                     "pose": NODE_POSES[node_id]}), 200
 
 
+# --- NEW: live obstacle scan endpoint ---
+@app.route('/obstacle', methods=['GET'])
+def get_obstacle():
+    return jsonify({
+        "obstacle_in_front": my_robot.scan.is_obstacle_front(),
+        "front_dist_m":      round(my_robot.scan.min_front_dist(), 3),
+        "left_dist_m":       round(my_robot.scan.left_min_dist(), 3),
+        "right_dist_m":      round(my_robot.scan.right_min_dist(), 3),
+        "best_dodge_side":   my_robot.scan.best_dodge_side(),
+        "is_dodging":        my_robot._dodging,
+        "obstacle_status":   my_robot.obstacle_status,
+        "thresholds": {
+            "obstacle_dist_m":   OBSTACLE_DIST,
+            "clear_dist_m":      CLEAR_DIST,
+            "side_check_dist_m": SIDE_CHECK_DIST,
+            "front_cone_deg":    FRONT_HALF_DEG * 2,
+        }
+    })
+
+
+# --- NEW: update dodge settings at runtime ---
+@app.route('/obstacle/settings', methods=['POST'])
+def update_obstacle_settings():
+    global OBSTACLE_DIST, CLEAR_DIST, SIDE_CHECK_DIST, FRONT_HALF_DEG
+    global DODGE_LINEAR_X, DODGE_ANGULAR_Z, DODGE_STEP_DUR
+    data = request.json or {}
+    if "obstacle_dist"    in data: OBSTACLE_DIST    = float(data["obstacle_dist"])
+    if "clear_dist"       in data: CLEAR_DIST       = float(data["clear_dist"])
+    if "side_check_dist"  in data: SIDE_CHECK_DIST  = float(data["side_check_dist"])
+    if "front_half_deg"   in data: FRONT_HALF_DEG   = float(data["front_half_deg"])
+    if "dodge_linear_x"   in data: DODGE_LINEAR_X   = float(data["dodge_linear_x"])
+    if "dodge_angular_z"  in data: DODGE_ANGULAR_Z  = float(data["dodge_angular_z"])
+    if "dodge_step_dur"   in data: DODGE_STEP_DUR   = float(data["dodge_step_dur"])
+    return jsonify({
+        "status": "updated",
+        "obstacle_dist":   OBSTACLE_DIST,
+        "clear_dist":      CLEAR_DIST,
+        "side_check_dist": SIDE_CHECK_DIST,
+        "front_half_deg":  FRONT_HALF_DEG,
+        "dodge_linear_x":  DODGE_LINEAR_X,
+        "dodge_angular_z": DODGE_ANGULAR_Z,
+        "dodge_step_dur":  DODGE_STEP_DUR,
+    })
+
+
 # ==================================================
 # MAIN
 # ==================================================
@@ -481,12 +692,14 @@ if __name__ == "__main__":
     is_navigating    = False
 
     print("--- Robot Server Ready on Port 5000 ---")
-    print("  POST /command              {start, target}")
-    print("  GET  /status")
+    print("  POST /command                    {start, target}")
+    print("  GET  /status                     (includes obstacle info)")
     print("  POST /stop")
-    print("  POST /command/reset-home   → Reset AMCL to Node 1")
-    print("  POST /amcl/set-pose        {x, y, yaw_deg}")
+    print("  POST /command/reset-home         → Reset AMCL to Node 1")
+    print("  POST /amcl/set-pose              {x, y, yaw_deg}")
     print("  GET  /amcl/status")
     print("  GET  /nodes")
-    print("  POST /nodes/<id>           {x, y, yaw_deg}")
+    print("  POST /nodes/<id>                 {x, y, yaw_deg}")
+    print("  GET  /obstacle                   live scan data")
+    print("  POST /obstacle/settings          tune dodge params at runtime")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
