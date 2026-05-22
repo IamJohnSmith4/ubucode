@@ -4,6 +4,7 @@ import math
 import signal
 import sys
 import threading
+import time
 from geometry_msgs.msg import Twist, PoseWithCovarianceStamped, PoseStamped
 from nav_msgs.msg import Odometry
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
@@ -24,28 +25,9 @@ velocity_publisher = None
 # NODE MAP
 # ==================================================
 NODE_POSES = {
-    1: {"x":  2.379, "y":  -0.639, "yaw_rad":  0.012},
-    2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.002},
-    3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.002},
-
-    # Waypoint มุมโค้ง — ใช้ yaw ตามทิศที่จะออกจากมุม
-    # corner_fwd : ขาไป  (Node1→2, Node1→3) เลี้ยวซ้ายขึ้น yaw = 90°
-    # corner_bwd : ขากลับ (Node2→1, Node3→1) เลี้ยวขวาลง  yaw = 0°
-    "corner_fwd": {"x": 9.777, "y": -0.265, "yaw_rad":  math.pi / 2},  # 90° หันขึ้น
-    "corner_bwd": {"x": 9.777, "y": -0.265, "yaw_rad":  0.012},         # 0°  หันไปซ้าย
-}
-
-# ==================================================
-# PATHS — กำหนดลำดับ waypoint แต่ละเส้นทาง
-# ==================================================
-PATHS = {
-    (1, 2): ["corner_fwd", 2],
-    (1, 3): ["corner_fwd", 3],
-    (2, 1): ["corner_bwd", 1],
-    (3, 1): ["corner_bwd", 1],
-    # เส้นทางเดียวกัน ไม่ผ่านมุม
-    (2, 3): [3],
-    (3, 2): [2],
+    1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.0},
+    2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.0},
+    3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.0},
 }
 
 
@@ -57,6 +39,239 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
+
+
+# ==================================================
+# MOVEMENT DIRECTION LOGGER
+# ==================================================
+class MovementLogger:
+    LINEAR_THRESHOLD      = 0.02
+    ANGULAR_THRESHOLD     = 0.02
+    FORWARD_DOT_THRESHOLD = 0.0
+
+    def __init__(self):
+        self.prev_x   = None
+        self.prev_y   = None
+        self.prev_yaw = None
+        self.last_logged_direction = None
+
+    def reset(self):
+        self.prev_x   = None
+        self.prev_y   = None
+        self.prev_yaw = None
+        self.last_logged_direction = None
+
+    def update(self, x, y, yaw):
+        if self.prev_x is None:
+            self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
+            return None
+
+        dx   = x - self.prev_x
+        dy   = y - self.prev_y
+        dyaw = math.atan2(math.sin(yaw - self.prev_yaw),
+                          math.cos(yaw - self.prev_yaw))
+
+        lin_dist = math.sqrt(dx**2 + dy**2)
+        moving   = lin_dist  > self.LINEAR_THRESHOLD
+        rotating = abs(dyaw) > self.ANGULAR_THRESHOLD
+
+        direction = None
+        if moving and rotating:
+            direction = "↺ Turn Left" if dyaw > 0 else "↻ Turn Right"
+        elif moving:
+            hx  = math.cos(self.prev_yaw)
+            hy  = math.sin(self.prev_yaw)
+            nx  = dx / lin_dist
+            ny  = dy / lin_dist
+            dot = nx * hx + ny * hy
+            direction = "⬆ Forward" if dot >= self.FORWARD_DOT_THRESHOLD else "⬇ Backward"
+        elif rotating:
+            direction = "↺ Turn Left" if dyaw > 0 else "↻ Turn Right"
+        else:
+            direction = "◼ Stationary"
+
+        self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
+
+        if direction != self.last_logged_direction:
+            rospy.loginfo(f"[Move] {direction}  "
+                          f"Δpos={lin_dist*100:.1f}cm  Δyaw={math.degrees(dyaw):.1f}°")
+            self.last_logged_direction = direction
+
+        return direction
+
+
+# ==================================================
+# SPEED MONITOR  (IRL odom  vs  RViz AMCL)
+# ==================================================
+class SpeedMonitor:
+    """
+    Computes linear speed (m/s) and angular speed (rad/s) independently for:
+      • ODOM  → real robot wheel encoders  (IRL)
+      • AMCL  → map-localization pose      (RViz)
+
+    Then compares them and warns when they diverge significantly.
+
+    Call  update_odom(x, y, yaw, stamp)  from odom_callback.
+    Call  update_amcl(x, y, yaw, stamp)  from amcl_callback.
+    Call  report()  every nav loop tick to print a side-by-side summary.
+    """
+
+    # Minimum speed to consider "moving" (below = treat as 0 for comparison)
+    MOVING_THRESHOLD_M  = 0.01   # m/s
+    MOVING_THRESHOLD_R  = 0.01   # rad/s
+
+    # Warn if speeds differ by more than this fraction of the faster one
+    DIVERGE_RATIO = 0.25         # 25%
+    # …or by more than this absolute amount regardless of ratio
+    DIVERGE_ABS_M = 0.05         # m/s
+    DIVERGE_ABS_R = 0.05         # rad/s
+
+    # Smoothing: exponential moving average alpha  (0=no smooth, 1=no memory)
+    ALPHA = 0.4
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        # odom state
+        self._o_px, self._o_py, self._o_pyaw = None, None, None
+        self._o_pt  = None
+        self.odom_lin_speed = 0.0
+        self.odom_ang_speed = 0.0
+        # amcl state
+        self._a_px, self._a_py, self._a_pyaw = None, None, None
+        self._a_pt  = None
+        self.amcl_lin_speed = 0.0
+        self.amcl_ang_speed = 0.0
+        # last report cache
+        self.last_report: dict = {}
+
+    def reset(self):
+        with self._lock:
+            self._o_px = self._o_py = self._o_pyaw = self._o_pt = None
+            self._a_px = self._a_py = self._a_pyaw = self._a_pt = None
+            self.odom_lin_speed = 0.0
+            self.odom_ang_speed = 0.0
+            self.amcl_lin_speed = 0.0
+            self.amcl_ang_speed = 0.0
+            self.last_report = {}
+
+    # ── internal EMA helper ──────────────────────────────────────────────────
+    @staticmethod
+    def _ema(old, new):
+        return SpeedMonitor.ALPHA * new + (1.0 - SpeedMonitor.ALPHA) * old
+
+    # ── public update methods (called from ROS callbacks) ───────────────────
+    def update_odom(self, x, y, yaw, stamp_sec: float):
+        with self._lock:
+            if self._o_pt is not None:
+                dt = stamp_sec - self._o_pt
+                if dt > 0.001:
+                    dx   = x - self._o_px
+                    dy   = y - self._o_py
+                    dyaw = math.atan2(math.sin(yaw - self._o_pyaw),
+                                      math.cos(yaw - self._o_pyaw))
+                    raw_lin = math.sqrt(dx**2 + dy**2) / dt
+                    raw_ang = abs(dyaw) / dt
+                    self.odom_lin_speed = self._ema(self.odom_lin_speed, raw_lin)
+                    self.odom_ang_speed = self._ema(self.odom_ang_speed, raw_ang)
+            self._o_px, self._o_py, self._o_pyaw, self._o_pt = x, y, yaw, stamp_sec
+
+    def update_amcl(self, x, y, yaw, stamp_sec: float):
+        with self._lock:
+            if self._a_pt is not None:
+                dt = stamp_sec - self._a_pt
+                if dt > 0.001:
+                    dx   = x - self._a_px
+                    dy   = y - self._a_py
+                    dyaw = math.atan2(math.sin(yaw - self._a_pyaw),
+                                      math.cos(yaw - self._a_pyaw))
+                    raw_lin = math.sqrt(dx**2 + dy**2) / dt
+                    raw_ang = abs(dyaw) / dt
+                    self.amcl_lin_speed = self._ema(self.amcl_lin_speed, raw_lin)
+                    self.amcl_ang_speed = self._ema(self.amcl_ang_speed, raw_ang)
+            self._a_px, self._a_py, self._a_pyaw, self._a_pt = x, y, yaw, stamp_sec
+
+    # ── comparison & logging ─────────────────────────────────────────────────
+    def _compare(self, odom_val, amcl_val, label, unit):
+        """
+        Returns a tuple (status_str, diff, pct).
+        status: "MATCH" | "DRIFT" | "ODOM_ONLY" | "AMCL_ONLY" | "STOPPED"
+        """
+        odom_moving = odom_val > self.MOVING_THRESHOLD_M
+        amcl_moving = amcl_val > self.MOVING_THRESHOLD_M
+
+        if not odom_moving and not amcl_moving:
+            return "STOPPED", 0.0, 0.0
+
+        if odom_moving and not amcl_moving:
+            return "ODOM_ONLY", odom_val, 100.0   # IRL moving, RViz frozen
+
+        if not odom_moving and amcl_moving:
+            return "AMCL_ONLY", amcl_val, 100.0   # RViz moving, IRL frozen
+
+        diff    = abs(odom_val - amcl_val)
+        faster  = max(odom_val, amcl_val)
+        pct     = (diff / faster) * 100.0 if faster > 0 else 0.0
+        drifted = diff > self.DIVERGE_ABS_M or pct > self.DIVERGE_RATIO * 100
+
+        return ("DRIFT" if drifted else "MATCH"), diff, pct
+
+    def report(self):
+        """
+        Print a side-by-side speed comparison log line.
+        Returns a dict for the /status API.
+        """
+        with self._lock:
+            ol = self.odom_lin_speed
+            oa = self.odom_ang_speed
+            al = self.amcl_lin_speed
+            aa = self.amcl_ang_speed
+
+        lin_status, lin_diff, lin_pct = self._compare(ol, al, "linear",  "m/s")
+        ang_status, ang_diff, ang_pct = self._compare(oa, aa, "angular", "r/s")
+
+        # ── pick emoji indicators ────────────────────────────────────────────
+        def _icon(s):
+            return {"MATCH": "✅", "DRIFT": "⚠️ ",
+                    "ODOM_ONLY": "🔴", "AMCL_ONLY": "🔵",
+                    "STOPPED": "⬜"}.get(s, "?")
+
+        rospy.loginfo(
+            f"[Speed] IRL(odom) lin={ol:.3f}m/s ang={math.degrees(oa):.1f}°/s  |  "
+            f"RViz(amcl) lin={al:.3f}m/s ang={math.degrees(aa):.1f}°/s  |  "
+            f"Lin:{_icon(lin_status)}{lin_status}({lin_pct:.0f}%)  "
+            f"Ang:{_icon(ang_status)}{ang_status}({ang_pct:.0f}%)"
+        )
+
+        # Warn on severe drift
+        if lin_status == "DRIFT":
+            rospy.logwarn(
+                f"[Speed] ⚠️  LINEAR SPEED MISMATCH: "
+                f"odom={ol:.3f} vs amcl={al:.3f} m/s  diff={lin_diff:.3f}m/s ({lin_pct:.0f}%)"
+            )
+        if ang_status == "DRIFT":
+            rospy.logwarn(
+                f"[Speed] ⚠️  ANGULAR SPEED MISMATCH: "
+                f"odom={math.degrees(oa):.1f} vs amcl={math.degrees(aa):.1f} °/s"
+            )
+        if lin_status == "ODOM_ONLY":
+            rospy.logwarn("[Speed] 🔴 IRL robot moving but RViz pose is FROZEN!")
+        if lin_status == "AMCL_ONLY":
+            rospy.logwarn("[Speed] 🔵 RViz pose moving but IRL robot appears STOPPED!")
+
+        result = {
+            "odom_lin_speed_ms":  round(ol, 4),
+            "odom_ang_speed_degs": round(math.degrees(oa), 2),
+            "amcl_lin_speed_ms":  round(al, 4),
+            "amcl_ang_speed_degs": round(math.degrees(aa), 2),
+            "linear_status":      lin_status,
+            "linear_diff_ms":     round(lin_diff, 4),
+            "linear_diff_pct":    round(lin_pct, 1),
+            "angular_status":     ang_status,
+            "angular_diff_degs":  round(math.degrees(ang_diff), 2),
+            "angular_diff_pct":   round(ang_pct, 1),
+        }
+        self.last_report = result
+        return result
 
 
 # ==================================================
@@ -96,6 +311,10 @@ class OdomRobot:
         self.amcl_ready      = False
         self.amcl_lock       = threading.Lock()
 
+        # --- Movement Logger & Speed Monitor ---
+        self.movement_logger = MovementLogger()
+        self.speed_monitor   = SpeedMonitor()
+
         # --- move_base ---
         rospy.loginfo("[move_base] Connecting...")
         self.move_base_client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
@@ -118,7 +337,7 @@ class OdomRobot:
         rospy.loginfo("=== READY: Start at Node 1 ===")
 
     # --------------------------------------------------
-    # CALLBACKS
+    # CALLBACKS  — feed SpeedMonitor here
     # --------------------------------------------------
     def odom_callback(self, msg):
         self.raw_x = msg.pose.pose.position.x
@@ -131,6 +350,10 @@ class OdomRobot:
         self.y   = self.raw_y - self.offset_y
         self.yaw = math.atan2(math.sin(diff_yaw), math.cos(diff_yaw))
 
+        # Feed speed monitor with odom (real robot)
+        stamp = msg.header.stamp.to_sec()
+        self.speed_monitor.update_odom(self.x, self.y, self.yaw, stamp)
+
     def amcl_callback(self, msg):
         with self.amcl_lock:
             self.amcl_x = msg.pose.pose.position.x
@@ -141,6 +364,11 @@ class OdomRobot:
             self.amcl_covariance = (cov[0] + cov[7]) / 2.0
             if self.amcl_covariance < 0.05:
                 self.amcl_ready = True
+
+        # Feed speed monitor with amcl (RViz robot)
+        stamp = msg.header.stamp.to_sec()
+        self.speed_monitor.update_amcl(
+            self.amcl_x, self.amcl_y, self.amcl_yaw, stamp)
 
     # --------------------------------------------------
     # AMCL HELPERS
@@ -215,20 +443,24 @@ class OdomRobot:
         goal.target_pose.pose.orientation.w = math.cos(yr / 2.0)
         return goal
 
-    def navigate_to_node(self, node_id):
+    def navigate_to_node(self, target_node):
         global is_navigating, current_progress
 
-        goal = self._build_goal(node_id)
+        goal = self._build_goal(target_node)
         if goal is None:
             return False
 
-        p  = NODE_POSES[node_id]
-        tx = p["x"]
-        ty = p["y"]
-        rospy.loginfo(f"[Nav] → Node '{node_id}' ({tx:.2f}, {ty:.2f})")
+        tx = NODE_POSES[target_node]["x"]
+        ty = NODE_POSES[target_node]["y"]
+        rospy.loginfo(f"[Nav] → Node {target_node} ({tx:.2f}, {ty:.2f})")
 
         self.move_base_client.send_goal(goal)
         current_progress = 0
+
+        self.movement_logger.reset()
+        self.speed_monitor.reset()
+        rospy.loginfo("[Move] Direction logging + Speed monitor started.")
+
         rate = rospy.Rate(2)
 
         while not rospy.is_shutdown():
@@ -242,7 +474,7 @@ class OdomRobot:
 
             if state == GoalStatus.SUCCEEDED:
                 current_progress = 100
-                rospy.loginfo(f"[Nav] ✓ Reached '{node_id}'!")
+                rospy.loginfo(f"[Nav] ✓ Reached Node {target_node}!")
                 return True
 
             elif state in (GoalStatus.ABORTED, GoalStatus.REJECTED,
@@ -250,41 +482,31 @@ class OdomRobot:
                 rospy.logwarn(f"[Nav] Failed. State={state}")
                 return False
 
-            bx, by, _, _ = self.get_best_pose()
-            dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
-            src_pose = NODE_POSES.get(current_location, {"x": bx, "y": by})
-            dist_tot = math.sqrt((tx - src_pose["x"])**2 + (ty - src_pose["y"])**2)
-            if dist_tot > 0.01:
-                current_progress = max(0, min(99,
-                    (1 - dist_rem / dist_tot) * 100))
+            bx, by, byaw, pose_src = self.get_best_pose()
 
-            rospy.loginfo(f"[Nav] progress={current_progress:.1f}% dist={dist_rem:.2f}m")
+            # ── Direction log ──
+            self.movement_logger.update(bx, by, byaw)
+
+            # ── Speed comparison log ──
+            self.speed_monitor.report()
+
+            # ── Progress ──
+            dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
+            src      = NODE_POSES.get(current_location, {"x": bx, "y": by})
+            dist_tot = math.sqrt((tx - src["x"])**2 + (ty - src["y"])**2)
+            if dist_tot > 0.01:
+                current_progress = max(0, min(99, (1 - dist_rem / dist_tot) * 100))
+
+            rospy.loginfo(
+                f"[Nav] progress={current_progress:.1f}%  "
+                f"dist={dist_rem:.2f}m  pos=({bx:.2f},{by:.2f})  src={pose_src}"
+            )
             rate.sleep()
 
         return False
 
     def execute_path(self, start, target):
-        """เดินตาม waypoints ที่กำหนดใน PATHS"""
-        global current_location
-
-        # หา waypoint list สำหรับเส้นทางนี้
-        path_key = (start, target)
-        waypoints = PATHS.get(path_key, [target])  # ถ้าไม่มีใน PATHS ไปตรงๆ
-
-        rospy.loginfo(f"[Path] {start} → {target} : waypoints = {waypoints}")
-
-        for wp in waypoints:
-            rospy.loginfo(f"[Path] ➜ Waypoint '{wp}'")
-            success = self.navigate_to_node(wp)
-            if not success:
-                rospy.logwarn(f"[Path] ✗ Failed at waypoint '{wp}'")
-                return False
-            # ถ้า waypoint นี้คือ node จริง (ไม่ใช่ corner) ให้อัป current_location
-            if isinstance(wp, int):
-                current_location = wp
-
-        rospy.loginfo(f"[Path] ✓ Complete: reached Node {target}")
-        return True
+        return self.navigate_to_node(target)
 
 
 # ==================================================
@@ -303,12 +525,9 @@ def handle_command():
 
     if is_navigating:
         return jsonify({"status": "error", "message": "Robot is busy"}), 400
-
-    # ตรวจ target เป็น node จริงเท่านั้น (ไม่ใช่ corner)
-    real_nodes = [k for k in NODE_POSES if isinstance(k, int)]
-    if target not in real_nodes:
+    if target not in NODE_POSES:
         return jsonify({"status": "error",
-                        "message": f"Node {target} not found"}), 400
+                        "message": f"Node {target} not in NODE_POSES"}), 400
 
     def run_and_finish(s, t):
         global is_navigating, current_location, current_progress
@@ -321,9 +540,8 @@ def handle_command():
 
     threading.Thread(target=run_and_finish, args=(start, target)).start()
     return jsonify({"status": "starting",
-                    "from_node": start,
                     "target_node": target,
-                    "waypoints": PATHS.get((start, target), [target])}), 200
+                    "target_pose": NODE_POSES[target]}), 200
 
 
 @app.route('/status', methods=['GET'])
@@ -335,13 +553,24 @@ def get_status():
         "current_progress": round(current_progress, 1),
         "odom_position":    {"x": round(my_robot.x, 3), "y": round(my_robot.y, 3)},
         "odom_yaw_deg":     round(math.degrees(my_robot.yaw), 2),
-        "amcl_position":    {"x": round(my_robot.amcl_x, 3), "y": round(my_robot.amcl_y, 3)},
+        "amcl_position":    {"x": round(my_robot.amcl_x, 3),
+                             "y": round(my_robot.amcl_y, 3)},
         "amcl_yaw_deg":     round(math.degrees(my_robot.amcl_yaw), 2),
         "amcl_covariance":  round(my_robot.amcl_covariance, 4),
         "amcl_ready":       my_robot.amcl_ready,
         "best_position":    {"x": round(bx, 3), "y": round(by, 3)},
         "best_yaw_deg":     round(math.degrees(byaw), 2),
         "pose_source":      src,
+        "current_direction": my_robot.movement_logger.last_logged_direction,
+        "speed":            my_robot.speed_monitor.last_report,
+    })
+
+
+@app.route('/speed', methods=['GET'])
+def get_speed():
+    """Dedicated endpoint — returns live IRL vs RViz speed comparison."""
+    return jsonify(my_robot.speed_monitor.last_report or {
+        "note": "No speed data yet — robot may not be moving."
     })
 
 
@@ -360,8 +589,7 @@ def handle_reset_home():
     is_navigating = False
     my_robot.move_base_client.cancel_all_goals()
     threading.Thread(target=my_robot.execute_home_sequence).start()
-    return jsonify({"status": "success",
-                    "message": "Reset to Node 1"}), 200
+    return jsonify({"status": "success", "message": "Reset to Node 1"}), 200
 
 
 @app.route('/amcl/set-pose', methods=['POST'])
@@ -390,9 +618,8 @@ def handle_amcl_status():
 
 @app.route('/nodes', methods=['GET'])
 def get_nodes():
-    # แสดงเฉพาะ node จริง (int key)
     out = {k: {**v, "yaw_deg": round(math.degrees(v["yaw_rad"]), 2)}
-           for k, v in NODE_POSES.items() if isinstance(k, int)}
+           for k, v in NODE_POSES.items()}
     return jsonify({"nodes": out})
 
 
@@ -406,13 +633,6 @@ def update_node(node_id):
     }
     return jsonify({"status": "updated", "node": node_id,
                     "pose": NODE_POSES[node_id]}), 200
-
-
-@app.route('/paths', methods=['GET'])
-def get_paths():
-    """ดู waypoints ของแต่ละเส้นทาง"""
-    out = {f"{s}→{t}": wps for (s, t), wps in PATHS.items()}
-    return jsonify({"paths": out})
 
 
 # ==================================================
@@ -429,12 +649,12 @@ if __name__ == "__main__":
 
     print("--- Robot Server Ready on Port 5000 ---")
     print("  POST /command              {start, target}")
-    print("  GET  /status")
+    print("  GET  /status               (includes speed comparison)")
+    print("  GET  /speed                IRL vs RViz speed comparison")
     print("  POST /stop")
     print("  POST /command/reset-home   → Reset AMCL to Node 1")
     print("  POST /amcl/set-pose        {x, y, yaw_deg}")
     print("  GET  /amcl/status")
     print("  GET  /nodes")
     print("  POST /nodes/<id>           {x, y, yaw_deg}")
-    print("  GET  /paths                → ดู waypoints แต่ละเส้นทาง")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
