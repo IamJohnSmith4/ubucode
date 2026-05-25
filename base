@@ -1,3 +1,6 @@
+cp fix_scan_stamp.py ~/catkin_ws/src/my_robot/scripts/
+chmod +x ~/catkin_ws/src/my_robot/scripts/fix_scan_stamp.py
+
 #!/usr/bin/env python3
 # fix_scan_stamp.py
 # Republishes /scan with corrected timestamp (ros::Time::now())
