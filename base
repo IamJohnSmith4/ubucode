@@ -1,31 +1,23 @@
-TrajectoryPlannerROS:
-  max_vel_x: 0.12          # reduce from 0.15
-  min_vel_x: 0.05
-  max_vel_theta: 0.4
-  min_in_place_vel_theta: 0.2
+#!/usr/bin/env python3
+# fix_scan_stamp.py
+# Republishes /scan with corrected timestamp (ros::Time::now())
+# to fix the ~0.9s delay from Leishen LS01D driver
 
-  acc_lim_x: 0.1           # KEY — lower this, Kobuki ramps slowly
-  acc_lim_theta: 0.3       # lower this too
+import rospy
+from sensor_msgs.msg import LaserScan
 
-  holonomic_robot: false
-  sim_time: 2.0            # increase from 1.5
-  sim_granularity: 0.025
-  vx_samples: 10
-  vtheta_samples: 20
+pub = None
 
-  xy_goal_tolerance: 0.3
-  yaw_goal_tolerance: 0.5
-  latch_xy_goal_tolerance: true
+def callback(msg):
+    msg.header.stamp = rospy.Time.now()  # override with current ROS time
+    pub.publish(msg)
 
-  pdist_scale: 0.8
-  gdist_scale: 0.6
-  occdist_scale: 0.05
-
-  oscillation_reset_dist: 0.1
-  escape_vel: -0.05
-  escape_reset_dist: 0.1
-  escape_reset_theta: 0.1
-  meter_scoring: true
+if __name__ == "__main__":
+    rospy.init_node("fix_scan_stamp")
+    pub = rospy.Publisher("/scan_fixed", LaserScan, queue_size=10)
+    rospy.Subscriber("/scan", LaserScan, callback)
+    rospy.loginfo("[fix_scan_stamp] Running — republishing /scan → /scan_fixed with corrected timestamps")
+    rospy.spin()
 
 <launch>
   <!-- Bridge between base_footprint and base_link -->
@@ -97,8 +89,85 @@ TrajectoryPlannerROS:
 
 </launch>
 
-All Broadcasters:
-Node: unknown_publisher 101.816 Hz, Average Delay: -0.113244 Max Delay: 0.00189642
+<launch>
+  <!-- Bridge between base_footprint and base_link -->
+  <node pkg="tf" type="static_transform_publisher" 
+        name="footprint_to_base"
+        args="0 0 0 0 0 0 base_footprint base_link 50"/>
 
+  <!-- Laser TF — matches slam.launch exactly -->
+  <node pkg="tf" type="static_transform_publisher" 
+        name="base_to_laser"
+        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
+
+  <!-- ================================================== -->
+  <!-- Scan timestamp fix for Leishen LS01D               -->
+  <!-- Republishes /scan → /scan_fixed with ros::Time::now() -->
+  <!-- Fixes the -0.9s odom TF delay                      -->
+  <!-- ================================================== -->
+  <node pkg="my_robot" type="fix_scan_stamp.py" 
+        name="fix_scan_stamp" output="screen"/>
+
+  <!-- map_server -->
+  <node pkg="map_server" type="map_server" name="map_server"
+        args="/home/ubutu2004/map/final.yaml"
+        output="screen"/>
+
+  <!-- AMCL — using /scan_fixed instead of /scan -->
+  <node pkg="amcl" type="amcl" name="amcl" output="screen"
+        respawn="true">
+    <remap from="scan" to="scan_fixed"/>   <!-- KEY: use corrected timestamps -->
+    <param name="use_map_topic"       value="false"/>
+    <param name="tf_broadcast"        value="true"/>
+    <param name="odom_model_type"     value="diff"/>
+    <param name="odom_frame_id"       value="odom"/>
+    <param name="base_frame_id"       value="base_footprint"/>
+    <param name="global_frame_id"     value="map"/>
+    <param name="laser_model_type"    value="likelihood_field"/>
+    <param name="min_particles"       value="500"/>
+    <param name="max_particles"       value="2000"/>
+    <param name="laser_max_range"     value="7.0"/>
+    <param name="laser_max_beams"     value="90"/>
+    <param name="update_min_d"        value="0.1"/>
+    <param name="update_min_a"        value="0.1"/>
+    <param name="transform_tolerance" value="0.5"/>  <!-- reduced from 1.0 now that timestamps are fixed -->
+    <param name="initial_pose_x"      value="0.0"/>
+    <param name="initial_pose_y"      value="0.0"/>
+    <param name="initial_pose_a"      value="0.0"/>
+    <param name="gui_publish_rate"    value="10.0"/>
+    <param name="recovery_alpha_slow" value="0.001"/>
+    <param name="recovery_alpha_fast" value="0.1"/>
+  </node>
+
+  <!-- move_base — using /scan_fixed in costmaps too -->
+  <node pkg="move_base" type="move_base" name="move_base" output="screen">
+    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
+              command="load" ns="global_costmap"/>
+    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
+              command="load" ns="local_costmap"/>
+    <rosparam file="$(find my_robot)/config/global_costmap.yaml"
+              command="load"/>
+    <rosparam file="$(find my_robot)/config/local_costmap.yaml"
+              command="load"/>
+    <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
+              command="load"/>
+
+    <!-- Remap scan for costmap obstacle layer -->
+    <remap from="scan" to="scan_fixed"/>
+
+    <param name="base_global_planner" value="navfn/NavfnROS"/>
+    <param name="base_local_planner"  value="base_local_planner/TrajectoryPlannerROS"/>
+    <remap from="cmd_vel"             to="/mobile_base/commands/velocity"/>
+
+    <param name="controller_frequency"      value="5.0"/>
+    <param name="planner_patience"          value="10.0"/>
+    <param name="controller_patience"       value="20.0"/>
+    <param name="conservative_reset_dist"   value="3.0"/>
+    <param name="recovery_behavior_enabled" value="false"/>
+    <param name="clearing_rotation_allowed" value="false"/>
+    <param name="planner_frequency"         value="1.0"/>
+  </node>
+
+</launch>
 
 
