@@ -28,11 +28,67 @@ TrajectoryPlannerROS:
   meter_scoring: true
 
 
-<!-- Velocity smoother — critical for Turtlebot2 -->
-<node pkg="nodelet" type="nodelet" name="velocity_smoother"
-      args="load yocs_velocity_smoother/VelocitySmootherNodelet mobile_base_nodelet_manager">
-  <rosparam file="$(find turtlebot_bringup)/param/defaults/smoother.yaml"
-            command="load"/>
-  <remap from="velocity_smoother/raw_cmd_vel"   to="/move_base/cmd_vel"/>
-  <remap from="velocity_smoother/smooth_cmd_vel" to="/mobile_base/commands/velocity"/>
-</node>
+rosrun tf tf_monitor
+
+
+
+RESULTS: for all Frames
+
+Frames:
+
+All Broadcasters:
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000921105 Max Delay: 0.00189642
+Frame: base_link published by unknown_publisher Average Delay: -0.0490417 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0492439 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.907737 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 109.284 Hz, Average Delay: -0.141192 Max Delay: 0.00189642
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000933497 Max Delay: 0.00189642
+Frame: base_link published by unknown_publisher Average Delay: -0.0491704 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0492352 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.901825 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 102.402 Hz, Average Delay: -0.125637 Max Delay: 0.00189642
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.00092312 Max Delay: 0.00189642
+Frame: base_link published by unknown_publisher Average Delay: -0.0491952 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0492104 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.899244 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 103.544 Hz, Average Delay: -0.116068 Max Delay: 0.00189642
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.00094999 Max Delay: 0.00189642
+Frame: base_link published by unknown_publisher Average Delay: -0.0492017 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.049231 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.900722 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 101.816 Hz, Average Delay: -0.113244 Max Delay: 0.00189642
+
+
+
