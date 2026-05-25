@@ -4,7 +4,7 @@ import math
 import signal
 import sys
 import threading
-from geometry_msgs.msg import Twist, PoseWithCovarianceStamped, PoseStamped
+from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
@@ -21,29 +21,32 @@ current_progress   = 0
 velocity_publisher = None
 
 # ==================================================
-# NODE MAP
+# NODE MAP  (Node 5 removed)
 # ==================================================
 NODE_POSES = {
-    0: {"x":  0.000, "y":   0.000,  "yaw_rad":  0.0},    # Home / Origin
-    1: {"x":  3.516, "y":  -0.651,  "yaw_rad":  0.0},
-    5: {"x": 10.040, "y":  -0.088,  "yaw_rad":  0.002},  # Pre-corner waypoint (AMCL settle)
-    2: {"x": 12.455, "y":  13.314,  "yaw_rad":  0.002},
-    3: {"x": 16.521, "y":  22.191,  "yaw_rad":  0.002},
+    1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.0},
+    2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.002},
+    3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.002},
 }
 
 # ==================================================
 # NODE PATH SEQUENCES
-# Defines the waypoints the robot must visit IN ORDER
-# before reaching the final target node.
-# Node 5 is a pre-corner waypoint — robot pauses here
-# so AMCL can re-localize before the tricky junction.
+# FORWARD  (target > current): sequence from Node 1
+# BACKWARD (target < current): direct only
+# (1→2) and (1→3) use hardcoded moves first, then nav
 # ==================================================
 NODE_PATH_SEQUENCES = {
-    0: [0],              # Go to Node 0 directly
-    1: [1],              # Go to Node 1 directly
-    5: [0, 1, 5],        # Go to pre-corner node
-    2: [0, 1, 5, 2],     # Node 2: settle at corner first
-    3: [0, 1, 5, 2, 3],  # Node 3: settle at corner first
+    1: [1],
+    2: [1, 2],
+    3: [1, 2, 3],
+}
+
+# Routes that start with hardcoded moves before switching to nav mode.
+# Format: list of ("rotate", deg) or ("move", dist, bias) commands.
+# After these finish, the robot hands off to move_base for the rest.
+HARDCODED_PREFIX = {
+    (1, 2): [("rotate", -90), ("move", 6.5, 0.0), ("rotate", 90)],
+    (1, 3): [("rotate", -90), ("move", 6.5, 0.0), ("rotate", 90)],
 }
 
 
@@ -81,20 +84,16 @@ class MovementLogger:
         if self.prev_x is None:
             self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
             return None
-
-        dx   = x   - self.prev_x
-        dy   = y   - self.prev_y
+        dx   = x - self.prev_x
+        dy   = y - self.prev_y
         dyaw = math.atan2(math.sin(yaw - self.prev_yaw),
                           math.cos(yaw - self.prev_yaw))
-
         lin_dist = math.sqrt(dx**2 + dy**2)
         moving   = lin_dist  > self.LINEAR_THRESHOLD
         rotating = abs(dyaw) > self.ANGULAR_THRESHOLD
-
         direction = None
-
         if moving and rotating:
-            direction = "↺ Turn Left"  if dyaw > 0 else "↻ Turn Right"
+            direction = "↺ Turn Left" if dyaw > 0 else "↻ Turn Right"
         elif moving:
             hx  = math.cos(self.prev_yaw)
             hy  = math.sin(self.prev_yaw)
@@ -103,17 +102,14 @@ class MovementLogger:
             dot = nx * hx + ny * hy
             direction = "⬆ Forward" if dot >= self.FORWARD_DOT_THRESHOLD else "⬇ Backward"
         elif rotating:
-            direction = "↺ Turn Left"  if dyaw > 0 else "↻ Turn Right"
+            direction = "↺ Turn Left" if dyaw > 0 else "↻ Turn Right"
         else:
             direction = "◼ Stationary"
-
         self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
-
         if direction != self.last_logged_direction:
             rospy.loginfo(f"[Move] {direction}  "
                           f"Δpos={lin_dist*100:.1f}cm  Δyaw={math.degrees(dyaw):.1f}°")
             self.last_logged_direction = direction
-
         return direction
 
 
@@ -143,22 +139,27 @@ class OdomRobot:
         rospy.init_node("odom_robot")
         self.pub = pub
 
+        # --- Odometry ---
         self.raw_x, self.raw_y, self.raw_yaw = 0.0, 0.0, 0.0
         self.x, self.y, self.yaw             = 0.0, 0.0, 0.0
         self.offset_x, self.offset_y, self.offset_yaw = 0.0, 0.0, 0.0
 
+        # --- AMCL ---
         self.amcl_x, self.amcl_y, self.amcl_yaw = 0.0, 0.0, 0.0
         self.amcl_covariance = 1.0
         self.amcl_ready      = False
         self.amcl_lock       = threading.Lock()
 
+        # --- Movement Logger ---
         self.movement_logger = MovementLogger()
 
+        # --- move_base ---
         rospy.loginfo("[move_base] Connecting...")
         self.move_base_client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         mb_ok = self.move_base_client.wait_for_server(timeout=rospy.Duration(10.0))
         rospy.loginfo("[move_base] Connected!" if mb_ok else "[move_base] NOT available.")
 
+        # --- Subscribers ---
         rospy.Subscriber("/odom",      Odometry,                  self.odom_callback)
         rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.amcl_callback)
 
@@ -168,6 +169,18 @@ class OdomRobot:
         rospy.loginfo("Waiting for odom...")
         rospy.wait_for_message("/odom", Odometry)
         rospy.sleep(1)
+
+        # --- Home Sequence on boot ---
+        rospy.loginfo("=== START HOME SEQUENCE ===")
+        is_navigating = True
+        self.reset_home()
+        self.move_forward(2.5)
+        self.rotate(math.radians(-90))
+        self.move_forward(0.5)
+        self.rotate(math.radians(180))
+        self.reset_home()
+        is_navigating = False
+        rospy.loginfo("=== ROBOT READY (HOME=0,0,0) ===")
 
         self._wait_for_amcl(timeout=10.0)
         rospy.loginfo("=== READY ===")
@@ -208,26 +221,6 @@ class OdomRobot:
         except rospy.ROSException:
             rospy.logwarn("[AMCL] Not received. Odometry only.")
 
-    def _wait_for_amcl_confident(self, timeout=5.0):
-        """
-        Block until AMCL covariance drops below 0.03 (very confident)
-        or until timeout. Called after stopping at the pre-corner Node 5
-        so the robot re-localizes before the tricky junction.
-        """
-        rospy.loginfo("[AMCL] Waiting for confident localization...")
-        start = rospy.Time.now()
-        rate  = rospy.Rate(2)
-        while (rospy.Time.now() - start).to_sec() < timeout:
-            with self.amcl_lock:
-                cov = self.amcl_covariance
-            if cov < 0.03:
-                rospy.loginfo(f"[AMCL] Confident! covariance={cov:.4f} ✓")
-                return True
-            rospy.loginfo(f"[AMCL] Still settling... covariance={cov:.4f}")
-            rate.sleep()
-        rospy.logwarn(f"[AMCL] Timeout after {timeout}s — continuing anyway.")
-        return False
-
     def set_initial_pose(self, x, y, yaw_rad):
         pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped,
                               queue_size=1, latch=True)
@@ -247,13 +240,6 @@ class OdomRobot:
         pub.publish(msg)
         rospy.loginfo(f"[AMCL] Pose → x={x:.2f} y={y:.2f} yaw={math.degrees(yaw_rad):.1f}°")
 
-    def _set_amcl_to_node(self, node_id):
-        if node_id not in NODE_POSES:
-            return
-        p = NODE_POSES[node_id]
-        self.set_initial_pose(p["x"], p["y"], p["yaw_rad"])
-        rospy.loginfo(f"[AMCL] Reset to Node {node_id}")
-
     def get_best_pose(self):
         with self.amcl_lock:
             if self.amcl_ready and self.amcl_covariance < 0.05:
@@ -261,29 +247,102 @@ class OdomRobot:
         return self.x, self.y, self.yaw, "odom"
 
     # --------------------------------------------------
-    # RESET HOME  (Node 0 → Node 1)
+    # RESET / HOME
     # --------------------------------------------------
-    def execute_home_sequence(self):
-        global is_navigating, current_location
-
-        rospy.loginfo("--- Reset Home: setting AMCL to Node 0 (origin) ---")
-        self.move_base_client.cancel_all_goals()
+    def reset_home(self):
+        self.offset_x   = self.raw_x
+        self.offset_y   = self.raw_y
+        self.offset_yaw = self.raw_yaw
+        self.x = self.y = self.yaw = 0.0
         rospy.sleep(0.5)
 
-        self._set_amcl_to_node(0)
-        current_location = 0
-        rospy.sleep(1.0)
-
-        rospy.loginfo("--- Reset Home: navigating Node 0 → Node 1 ---")
+    def execute_home_sequence(self):
+        global is_navigating, current_location
+        rospy.loginfo("--- Starting Home Sequence ---")
         is_navigating = True
-        success = self.navigate_to_node(1)
+        self.reset_home()
+        self.move_forward(2.5)
+        self.rotate(math.radians(-90))
+        self.move_forward(0.5)
+        self.rotate(math.radians(180))
+        self.reset_home()
+        current_location = 1
         is_navigating = False
+        rospy.loginfo("--- Home Sequence Complete: at Node 1 ---")
 
-        if success:
-            current_location = 1
-            rospy.loginfo("--- Reset Home: arrived at Node 1 ✓ ---")
-        else:
-            rospy.logwarn("--- Reset Home: navigation to Node 1 failed ---")
+    # --------------------------------------------------
+    # MOTION PRIMITIVES  (used by home sequence &
+    #                     hardcoded path prefixes)
+    # --------------------------------------------------
+    def move_forward(self, distance, bias=0.0):
+        start_x, start_y = self.x, self.y
+        target_yaw       = self.yaw
+        rate             = rospy.Rate(20)
+        LINEAR_SPEED     = 0.10
+        current_speed    = 0.05
+        accel            = 0.008
+        min_speed        = 0.07
+        decel_dist       = 0.4
+
+        self.pid_straight.integral   = 0.0
+        self.pid_straight.last_error = 0.0
+        rospy.loginfo(f"[Hardcode] move_forward {distance:.2f}m  bias={bias}")
+
+        while not rospy.is_shutdown() and is_navigating:
+            traveled       = math.sqrt((self.x - start_x)**2 + (self.y - start_y)**2)
+            remaining_dist = distance - traveled
+            if traveled >= distance:
+                break
+            if remaining_dist > decel_dist:
+                current_speed = min(current_speed + accel, LINEAR_SPEED)
+            else:
+                current_speed = max(min_speed, (remaining_dist / decel_dist) * LINEAR_SPEED)
+            error_yaw = math.atan2(math.sin(target_yaw - self.yaw),
+                                   math.cos(target_yaw - self.yaw))
+            twist = Twist()
+            twist.linear.x  = current_speed
+            twist.angular.z = self.pid_straight.compute(error_yaw, 0.05) + bias
+            self.pub.publish(twist)
+            rate.sleep()
+
+        self.pub.publish(Twist())
+        rospy.sleep(0.3)
+
+    def rotate(self, angle_rad):
+        target_yaw = math.atan2(math.sin(self.yaw + angle_rad),
+                                math.cos(self.yaw + angle_rad))
+        rate = rospy.Rate(30)
+        self.pid_rotate.integral   = 0.0
+        self.pid_rotate.last_error = 0.0
+        rospy.loginfo(f"[Hardcode] rotate {math.degrees(angle_rad):.1f}°")
+
+        while not rospy.is_shutdown() and is_navigating:
+            error = math.atan2(math.sin(target_yaw - self.yaw),
+                               math.cos(target_yaw - self.yaw))
+            if abs(error) < 0.005:
+                break
+            twist = Twist()
+            twist.angular.z = self.pid_rotate.compute(error, 1.0 / 30.0)
+            self.pub.publish(twist)
+            rate.sleep()
+
+        self.pub.publish(Twist())
+        rospy.sleep(0.3)
+
+    def _run_hardcoded_prefix(self, cmds):
+        """Execute a list of hardcoded move/rotate commands."""
+        for cmd in cmds:
+            if not is_navigating:
+                return False
+            action = cmd[0]
+            if action == "move":
+                dist = float(cmd[1])
+                bias = float(cmd[2]) if len(cmd) > 2 else 0.0
+                self.move_forward(dist, bias)
+            elif action == "rotate":
+                self.rotate(math.radians(float(cmd[1])))
+                rospy.sleep(0.5)
+        return True
 
     # --------------------------------------------------
     # move_base NAVIGATION (single node)
@@ -316,18 +375,14 @@ class OdomRobot:
 
         self.move_base_client.send_goal(goal)
         current_progress = 0
-
         self.movement_logger.reset()
-        rospy.loginfo("[Move] Direction logging started.")
 
         rate = rospy.Rate(2)
 
         while not rospy.is_shutdown():
-
             if not is_navigating:
                 self.move_base_client.cancel_goal()
                 rospy.loginfo("[Nav] Goal cancelled.")
-                rospy.loginfo("[Move] Direction logging stopped.")
                 return False
 
             state = self.move_base_client.get_state()
@@ -335,104 +390,104 @@ class OdomRobot:
             if state == GoalStatus.SUCCEEDED:
                 current_progress = 100
                 rospy.loginfo(f"[Nav] ✓ Reached Node {target_node}!")
-                rospy.loginfo("[Move] Direction logging stopped — destination reached.")
                 return True
 
             elif state in (GoalStatus.ABORTED, GoalStatus.REJECTED,
                            GoalStatus.PREEMPTED, GoalStatus.LOST):
                 rospy.logwarn(f"[Nav] Failed. State={state}")
-                rospy.loginfo("[Move] Direction logging stopped — navigation failed.")
                 return False
 
             bx, by, byaw, pose_src = self.get_best_pose()
             self.movement_logger.update(bx, by, byaw)
 
             dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
-            src = NODE_POSES.get(current_location, {"x": bx, "y": by})
+            src      = NODE_POSES.get(current_location, {"x": bx, "y": by})
             dist_tot = math.sqrt((tx - src["x"])**2 + (ty - src["y"])**2)
             if dist_tot > 0.01:
-                current_progress = max(0, min(99,
-                    (1 - dist_rem / dist_tot) * 100))
+                current_progress = max(0, min(99, (1 - dist_rem / dist_tot) * 100))
 
             rospy.loginfo(
                 f"[Nav] progress={current_progress:.1f}%  "
-                f"dist={dist_rem:.2f}m  "
-                f"pos=({bx:.2f},{by:.2f})  "
-                f"src={pose_src}"
+                f"dist={dist_rem:.2f}m  pos=({bx:.2f},{by:.2f})  src={pose_src}"
             )
             rate.sleep()
 
         return False
 
     # --------------------------------------------------
-    # SEQUENTIAL MULTI-NODE PATH EXECUTION
+    # EXECUTE PATH
     #
-    # FORWARD (target > current_location):
-    #   Always resets to Node 0 first, then follows the
-    #   full sequence up to the target.
-    #   e.g. Node 1 → Node 3 : 0 → 1 → 5 → 2 → 3
-    #   e.g. Node 1 → Node 2 : 0 → 1 → 5 → 2
+    # FORWARD (target > current):
+    #   If route has a HARDCODED_PREFIX → run those moves
+    #   first (odom-based), then hand off to move_base
+    #   nav for remaining waypoints.
+    #   Otherwise → pure move_base nav through sequence.
     #
-    # BACKWARD (target < current_location):
-    #   Goes DIRECTLY to the target — no reset to 0.
-    #   e.g. Node 3 → Node 2 : 2 only
-    #   e.g. Node 3 → Node 1 : 1 only
-    #   e.g. Node 2 → Node 1 : 1 only
+    # BACKWARD (target < current):
+    #   Direct move_base nav to target only.
     #
-    # Node 5 is a special pre-corner waypoint:
-    #   Robot stops here for 2s + waits for AMCL to
-    #   re-localize before tackling the tricky junction.
+    # Routes with hardcoded prefix:
+    #   (1→2): rotate -90 → move 6.5m → rotate 90  → nav to Node 2
+    #   (1→3): rotate -90 → move 6.5m → rotate 90  → nav to Node 2 → nav to Node 3
     # --------------------------------------------------
     def execute_path(self, start, target):
         global current_location
 
         going_forward = target > current_location
 
-        if going_forward:
-            full_sequence = NODE_PATH_SEQUENCES.get(target)
-            if full_sequence is None:
-                rospy.logwarn(f"[Path] No sequence for Node {target}. Going direct.")
-                return self.navigate_to_node(target)
-            waypoints = full_sequence
+        if not going_forward:
+            # ── BACKWARD: go direct ──
+            rospy.loginfo(f"[Path] BACKWARD {current_location} → {target} | direct nav")
+            success = self.navigate_to_node(target)
+            if success:
+                current_location = target
+            return success
+
+        # ── FORWARD ──
+        full_sequence = NODE_PATH_SEQUENCES.get(target, [target])
+        prefix_key    = (current_location, target)
+        prefix_cmds   = HARDCODED_PREFIX.get(prefix_key)
+
+        if prefix_cmds:
+            # --- Phase 1: hardcoded moves ---
             rospy.loginfo(
                 f"[Path] FORWARD {current_location} → {target} | "
-                f"sequence: {waypoints}"
+                f"Phase 1: hardcoded moves {prefix_key}"
             )
-        else:
-            waypoints = [target]
-            rospy.loginfo(
-                f"[Path] BACKWARD {current_location} → {target} | "
-                f"direct: {waypoints}"
-            )
-
-        total_steps = len(waypoints)
-
-        for step_idx, waypoint in enumerate(waypoints, start=1):
-            rospy.loginfo(
-                f"[Path] Step {step_idx}/{total_steps} — navigating to Node {waypoint}"
-            )
-
-            success = self.navigate_to_node(waypoint)
-
-            if not success:
-                rospy.logwarn(
-                    f"[Path] Failed at step {step_idx} (Node {waypoint}). Aborting path."
-                )
+            ok = self._run_hardcoded_prefix(prefix_cmds)
+            if not ok:
+                rospy.logwarn("[Path] Hardcoded prefix aborted.")
                 return False
+            rospy.loginfo("[Path] Phase 1 complete — handing off to nav mode.")
 
+            # --- Phase 2: nav mode for remaining nodes after current_location ---
+            # After the hardcoded moves the robot is physically past Node 1,
+            # so we navigate only the nodes that come AFTER it in the sequence.
+            try:
+                start_idx = full_sequence.index(current_location) + 1
+            except ValueError:
+                start_idx = 0
+            remaining = full_sequence[start_idx:]
+
+        else:
+            # --- Pure nav mode (no hardcoded prefix) ---
+            rospy.loginfo(
+                f"[Path] FORWARD {current_location} → {target} | "
+                f"pure nav sequence: {full_sequence}"
+            )
+            remaining = full_sequence
+
+        total_steps = len(remaining)
+        for step_idx, waypoint in enumerate(remaining, start=1):
+            rospy.loginfo(
+                f"[Path] Step {step_idx}/{total_steps} — nav to Node {waypoint}"
+            )
+            success = self.navigate_to_node(waypoint)
+            if not success:
+                rospy.logwarn(f"[Path] Failed at Node {waypoint}. Aborting.")
+                return False
             current_location = waypoint
-            rospy.loginfo(f"[Path] ✓ Waypoint Node {waypoint} reached.")
-
-            # ── Special handling for Node 5 (pre-corner AMCL settle point) ──
-            if waypoint == 5:
-                rospy.loginfo(
-                    "[Path] *** Node 5 pre-corner stop ***  "
-                    "Pausing 2s for AMCL to re-localize before junction..."
-                )
-                rospy.sleep(2.0)                        # robot stands still, laser stabilizes
-                self._wait_for_amcl_confident(timeout=5.0)  # wait up to 5s for low covariance
-                rospy.loginfo("[Path] AMCL settle complete — continuing past junction.")
-
+            rospy.loginfo(f"[Path] ✓ Node {waypoint} reached.")
             if step_idx < total_steps:
                 rospy.sleep(0.5)
 
@@ -460,7 +515,6 @@ def handle_command():
         return jsonify({"status": "error",
                         "message": f"Node {target} not in NODE_POSES"}), 400
 
-    # Build the planned sequence so the caller can see what will happen
     planned_sequence = NODE_PATH_SEQUENCES.get(target, [target])
 
     def run_and_finish(s, t):
@@ -477,7 +531,7 @@ def handle_command():
         "status":           "starting",
         "target_node":      target,
         "target_pose":      NODE_POSES[target],
-        "planned_sequence": planned_sequence,   # ← lets the caller see the full route
+        "planned_sequence": planned_sequence,
     }), 200
 
 
@@ -485,19 +539,18 @@ def handle_command():
 def get_status():
     bx, by, byaw, src = my_robot.get_best_pose()
     return jsonify({
-        "is_navigating":    is_navigating,
-        "current_location": current_location,
-        "current_progress": round(current_progress, 1),
-        "odom_position":    {"x": round(my_robot.x, 3), "y": round(my_robot.y, 3)},
-        "odom_yaw_deg":     round(math.degrees(my_robot.yaw), 2),
-        "amcl_position":    {"x": round(my_robot.amcl_x, 3),
-                             "y": round(my_robot.amcl_y, 3)},
-        "amcl_yaw_deg":     round(math.degrees(my_robot.amcl_yaw), 2),
-        "amcl_covariance":  round(my_robot.amcl_covariance, 4),
-        "amcl_ready":       my_robot.amcl_ready,
-        "best_position":    {"x": round(bx, 3), "y": round(by, 3)},
-        "best_yaw_deg":     round(math.degrees(byaw), 2),
-        "pose_source":      src,
+        "is_navigating":     is_navigating,
+        "current_location":  current_location,
+        "current_progress":  round(current_progress, 1),
+        "odom_position":     {"x": round(my_robot.x, 3), "y": round(my_robot.y, 3)},
+        "odom_yaw_deg":      round(math.degrees(my_robot.yaw), 2),
+        "amcl_position":     {"x": round(my_robot.amcl_x, 3), "y": round(my_robot.amcl_y, 3)},
+        "amcl_yaw_deg":      round(math.degrees(my_robot.amcl_yaw), 2),
+        "amcl_covariance":   round(my_robot.amcl_covariance, 4),
+        "amcl_ready":        my_robot.amcl_ready,
+        "best_position":     {"x": round(bx, 3), "y": round(by, 3)},
+        "best_yaw_deg":      round(math.degrees(byaw), 2),
+        "pose_source":       src,
         "current_direction": my_robot.movement_logger.last_logged_direction,
     })
 
@@ -520,9 +573,7 @@ def handle_reset_home():
     threading.Thread(target=my_robot.execute_home_sequence).start()
     return jsonify({
         "status":  "starting",
-        "message": "Reset home: Node 0 (origin) → Node 1",
-        "node_0":  NODE_POSES[0],
-        "node_1":  NODE_POSES[1],
+        "message": "Executing home sequence → Node 1",
     }), 200
 
 
@@ -543,8 +594,7 @@ def handle_amcl_status():
     return jsonify({
         "amcl_ready":      my_robot.amcl_ready,
         "amcl_covariance": round(my_robot.amcl_covariance, 4),
-        "amcl_position":   {"x": round(my_robot.amcl_x, 3),
-                            "y": round(my_robot.amcl_y, 3)},
+        "amcl_position":   {"x": round(my_robot.amcl_x, 3), "y": round(my_robot.amcl_y, 3)},
         "amcl_yaw_deg":    round(math.degrees(my_robot.amcl_yaw), 2),
         "note":            "covariance < 0.05 = confident"
     })
@@ -585,7 +635,7 @@ if __name__ == "__main__":
     print("  POST /command              {start, target}")
     print("  GET  /status")
     print("  POST /stop")
-    print("  POST /command/reset-home   → AMCL to Node 0, then navigate to Node 1")
+    print("  POST /command/reset-home")
     print("  POST /amcl/set-pose        {x, y, yaw_deg}")
     print("  GET  /amcl/status")
     print("  GET  /nodes")
