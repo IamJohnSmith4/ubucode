@@ -24,22 +24,26 @@ velocity_publisher = None
 # NODE MAP
 # ==================================================
 NODE_POSES = {
-    0: {"x":  0.000, "y":   0.000, "yaw_rad":  0.0},   # Home / Origin
-    1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.002},
-    2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.002},
-    3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.002},
+    0: {"x":  0.000, "y":   0.000,  "yaw_rad":  0.0},    # Home / Origin
+    1: {"x":  3.516, "y":  -0.651,  "yaw_rad":  0.0},
+    5: {"x": 10.040, "y":  -0.088,  "yaw_rad":  0.002},  # Pre-corner waypoint (AMCL settle)
+    2: {"x": 12.455, "y":  13.314,  "yaw_rad":  0.002},
+    3: {"x": 16.521, "y":  22.191,  "yaw_rad":  0.002},
 }
 
 # ==================================================
 # NODE PATH SEQUENCES
 # Defines the waypoints the robot must visit IN ORDER
 # before reaching the final target node.
+# Node 5 is a pre-corner waypoint — robot pauses here
+# so AMCL can re-localize before the tricky junction.
 # ==================================================
 NODE_PATH_SEQUENCES = {
-    0: [0],           # Go to Node 0 directly
-    1: [1],           # Go to Node 1 directly
-    2: [0, 1, 2],     # Node 2: must pass through 0 → 1 → 2
-    3: [0, 1, 2, 3],  # Node 3: must pass through 0 → 1 → 2 → 3
+    0: [0],              # Go to Node 0 directly
+    1: [1],              # Go to Node 1 directly
+    5: [0, 1, 5],        # Go to pre-corner node
+    2: [0, 1, 5, 2],     # Node 2: settle at corner first
+    3: [0, 1, 5, 2, 3],  # Node 3: settle at corner first
 }
 
 
@@ -204,6 +208,26 @@ class OdomRobot:
         except rospy.ROSException:
             rospy.logwarn("[AMCL] Not received. Odometry only.")
 
+    def _wait_for_amcl_confident(self, timeout=5.0):
+        """
+        Block until AMCL covariance drops below 0.03 (very confident)
+        or until timeout. Called after stopping at the pre-corner Node 5
+        so the robot re-localizes before the tricky junction.
+        """
+        rospy.loginfo("[AMCL] Waiting for confident localization...")
+        start = rospy.Time.now()
+        rate  = rospy.Rate(2)
+        while (rospy.Time.now() - start).to_sec() < timeout:
+            with self.amcl_lock:
+                cov = self.amcl_covariance
+            if cov < 0.03:
+                rospy.loginfo(f"[AMCL] Confident! covariance={cov:.4f} ✓")
+                return True
+            rospy.loginfo(f"[AMCL] Still settling... covariance={cov:.4f}")
+            rate.sleep()
+        rospy.logwarn(f"[AMCL] Timeout after {timeout}s — continuing anyway.")
+        return False
+
     def set_initial_pose(self, x, y, yaw_rad):
         pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped,
                               queue_size=1, latch=True)
@@ -346,14 +370,18 @@ class OdomRobot:
     # FORWARD (target > current_location):
     #   Always resets to Node 0 first, then follows the
     #   full sequence up to the target.
-    #   e.g. Node 1 → Node 3 : 0 → 1 → 2 → 3
-    #   e.g. Node 1 → Node 2 : 0 → 1 → 2
+    #   e.g. Node 1 → Node 3 : 0 → 1 → 5 → 2 → 3
+    #   e.g. Node 1 → Node 2 : 0 → 1 → 5 → 2
     #
     # BACKWARD (target < current_location):
     #   Goes DIRECTLY to the target — no reset to 0.
     #   e.g. Node 3 → Node 2 : 2 only
     #   e.g. Node 3 → Node 1 : 1 only
     #   e.g. Node 2 → Node 1 : 1 only
+    #
+    # Node 5 is a special pre-corner waypoint:
+    #   Robot stops here for 2s + waits for AMCL to
+    #   re-localize before tackling the tricky junction.
     # --------------------------------------------------
     def execute_path(self, start, target):
         global current_location
@@ -361,18 +389,16 @@ class OdomRobot:
         going_forward = target > current_location
 
         if going_forward:
-            # Full sequence from Node 0 up to target
             full_sequence = NODE_PATH_SEQUENCES.get(target)
             if full_sequence is None:
                 rospy.logwarn(f"[Path] No sequence for Node {target}. Going direct.")
                 return self.navigate_to_node(target)
-            waypoints = full_sequence  # always [0, 1, ..., target]
+            waypoints = full_sequence
             rospy.loginfo(
                 f"[Path] FORWARD {current_location} → {target} | "
                 f"sequence: {waypoints}"
             )
         else:
-            # Going backward — direct shot to target, no reset
             waypoints = [target]
             rospy.loginfo(
                 f"[Path] BACKWARD {current_location} → {target} | "
@@ -396,6 +422,16 @@ class OdomRobot:
 
             current_location = waypoint
             rospy.loginfo(f"[Path] ✓ Waypoint Node {waypoint} reached.")
+
+            # ── Special handling for Node 5 (pre-corner AMCL settle point) ──
+            if waypoint == 5:
+                rospy.loginfo(
+                    "[Path] *** Node 5 pre-corner stop ***  "
+                    "Pausing 2s for AMCL to re-localize before junction..."
+                )
+                rospy.sleep(2.0)                        # robot stands still, laser stabilizes
+                self._wait_for_amcl_confident(timeout=5.0)  # wait up to 5s for low covariance
+                rospy.loginfo("[Path] AMCL settle complete — continuing past junction.")
 
             if step_idx < total_steps:
                 rospy.sleep(0.5)
