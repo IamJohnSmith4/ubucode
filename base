@@ -1,0 +1,34 @@
+TrajectoryPlannerROS:
+  # Speed settings
+  max_vel_x: 0.15         # increase from default
+  min_vel_x: 0.05          # minimum forward speed
+  max_vel_theta: 0.5      # max rotation speed
+  min_in_place_vel_theta: 0.2  # min rotation speed
+  
+  # Acceleration 
+  acc_lim_x: 0.3
+  acc_lim_theta: 0.5
+  
+  # Path following
+  holonomic_robot: false
+  sim_time: 1.5           # how far ahead to simulate
+  sim_granularity: 0.02
+  vx_samples: 10          # speed samples
+  vtheta_samples: 20      # rotation samples
+  
+  # Goal tolerance
+  xy_goal_tolerance: 0.3  # stop within 30cm of goal
+  yaw_goal_tolerance: 0.5 # stop within 0.5 rad of goal angle
+  latch_xy_goal_tolerance: true
+  
+  # Path tolerance — KEY for stopping spin
+  pdist_scale: 0.8        # how much to follow path
+  gdist_scale: 0.6        # how much to go toward goal
+  occdist_scale: 0.05      # obstacle avoidance weight
+  
+  # Stop oscillation/spinning
+  oscillation_reset_dist: 0.1
+  escape_vel: -0.05
+  escape_reset_dist: 0.1
+  escape_reset_theta: 0.1
+  meter_scoring: true
