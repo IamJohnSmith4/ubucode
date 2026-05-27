@@ -1,17 +1,37 @@
-python3 - << 'EOF'
-import rospy
-from sensor_msgs.msg import LaserScan
+$ python3 - << 'EOF'
+> import rospy
+> from sensor_msgs.msg import LaserScan
+> 
+> def cb(msg):
+>     ros_now = rospy.Time.now().to_sec()
+>     scan_stamp = msg.header.stamp.to_sec()
+>     diff = ros_now - scan_stamp
+>     print(f"ROS now: {ros_now:.3f}  scan stamp: {scan_stamp:.3f}  diff: {diff:.3f}s  frame: {msg.header.frame_id}")
+> 
+> rospy.init_node("check_scan_delay")
+> rospy.Subscriber("/scan", LaserScan, cb)
+> rospy.spin()
+> EOF
+ROS now: 1779859441.352  scan stamp: 1779859441.260  diff: 0.092s  frame: laser_link
+ROS now: 1779859441.442  scan stamp: 1779859441.351  diff: 0.092s  frame: laser_link
+ROS now: 1779859441.533  scan stamp: 1779859441.441  diff: 0.092s  frame: laser_link
+ROS now: 1779859441.654  scan stamp: 1779859441.532  diff: 0.122s  frame: laser_link
+ROS now: 1779859441.745  scan stamp: 1779859441.653  diff: 0.092s  frame: laser_link
+ROS now: 1779859441.835  scan stamp: 1779859441.744  diff: 0.092s  frame: laser_link
+ROS now: 1779859441.956  scan stamp: 1779859441.835  diff: 0.122s  frame: laser_link
+ROS now: 1779859442.047  scan stamp: 1779859441.955  diff: 0.092s  frame: laser_link
+ROS now: 1779859442.138  scan stamp: 1779859442.046  diff: 0.092s  frame: laser_link
+ROS now: 1779859442.229  scan stamp: 1779859442.137  diff: 0.092s  frame: laser_link
+ROS now: 1779859442.350  scan stamp: 1779859442.228  diff: 0.122s  frame: laser_link
+ROS now: 1779859442.440  scan stamp: 1779859442.349  diff: 0.091s  frame: laser_link
+ROS now: 1779859442.531  scan stamp: 1779859442.439  diff: 0.091s  frame: laser_link
+ROS now: 1779859442.652  scan stamp: 1779859442.530  diff: 0.122s  frame: laser_link
+ROS now: 1779859442.743  scan stamp: 1779859442.651  diff: 0.092s  frame: laser_link
+ROS now: 1779859442.833  scan stamp: 1779859442.742  diff: 0.092s  frame: laser_link
+ROS now: 1779859442.924  scan stamp: 1779859442.832  diff: 0.091s  frame: laser_link
+ROS now: 1779859443.045  scan stamp: 1779859442.923  diff: 0.122s  frame: laser_link
+ROS now: 1779859443.136  scan stamp: 1779859443.044  diff: 0.092s  frame: laser_link
 
-def cb(msg):
-    ros_now = rospy.Time.now().to_sec()
-    scan_stamp = msg.header.stamp.to_sec()
-    diff = ros_now - scan_stamp
-    print(f"ROS now: {ros_now:.3f}  scan stamp: {scan_stamp:.3f}  diff: {diff:.3f}s  frame: {msg.header.frame_id}")
-
-rospy.init_node("check_scan_delay")
-rospy.Subscriber("/scan", LaserScan, cb)
-rospy.spin()
-EOF
 
 
 ubutu2004@ubutu2004-OEM-Default-
