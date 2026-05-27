@@ -1,27 +1,54 @@
-cp fix_scan_stamp.py ~/catkin_ws/src/my_robot/scripts/
-chmod +x ~/catkin_ws/src/my_robot/scripts/fix_scan_stamp.py
 
-#!/usr/bin/env python3
-# fix_scan_stamp.py
-# Republishes /scan with corrected timestamp (ros::Time::now())
-# to fix the ~0.9s delay from Leishen LS01D driver
+RESULTS: for all Frames
 
-import rospy
-from sensor_msgs.msg import LaserScan
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.0010032 Max Delay: 0.00371381
+Frame: base_link published by unknown_publisher Average Delay: -0.0491842 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0492029 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.486959 Max Delay: 0
 
-pub = None
+All Broadcasters:
+Node: unknown_publisher 99.6836 Hz, Average Delay: -0.0684378 Max Delay: 0.00371381
 
-def callback(msg):
-    msg.header.stamp = rospy.Time.now()  # override with current ROS time
-    pub.publish(msg)
 
-if __name__ == "__main__":
-    rospy.init_node("fix_scan_stamp")
-    pub = rospy.Publisher("/scan_fixed", LaserScan, queue_size=10)
-    rospy.Subscriber("/scan", LaserScan, callback)
-    rospy.loginfo("[fix_scan_stamp] Running — republishing /scan → /scan_fixed with corrected timestamps")
-    rospy.spin()
 
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.00100014 Max Delay: 0.00371381
+Frame: base_link published by unknown_publisher Average Delay: -0.0491835 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0492031 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.486962 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 99.7794 Hz, Average Delay: -0.0683906 Max Delay: 0.00371381
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000998536 Max Delay: 0.00371381
+Frame: base_link published by unknown_publisher Average Delay: -0.0491836 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0492031 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.486966 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 99.7626 Hz, Average Delay: -0.0683845 Max Delay: 0.00371381
+^C
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000997584 Max Delay: 0.00371381
+Frame: base_link published by unknown_publisher Average Delay: -0.0491836 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0492027 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.486966 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 99.8487 Hz, Average Delay: -0.0684347 Max Delay: 0.00371381
+ubutu2004@ubutu2004-OEM-Default-
 <launch>
   <!-- Bridge between base_footprint and base_link -->
   <node pkg="tf" type="static_transform_publisher" 
