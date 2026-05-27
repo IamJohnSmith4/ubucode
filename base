@@ -1,3 +1,15 @@
+:~$ rosrun my_robot REMAKE.py
+[INFO] [1779862560.640546]: [move_base] Connecting...
+[INFO] [1779862560.940036]: [move_base] Connected!
+[INFO] [1779862560.965910]: Waiting for odom...
+[INFO] [1779862562.004780]: === START HOME SEQUENCE ===
+Traceback (most recent call last):
+  File "/home/ubutu2004/catkin_ws/src/my_robot/src/REMAKE.py", line 488, in <module>
+    my_robot = OdomRobot(pub=velocity_publisher)
+  File "/home/ubutu2004/catkin_ws/src/my_robot/src/REMAKE.py", line 150, in __init__
+    self.move_forward(2.5)
+AttributeError: 'OdomRobot' object has no attribute 'move_forward'
+
 roscore
 
 rosrun talker talker _serial_port:=/dev/ttyUSB1
