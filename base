@@ -1,37 +1,67 @@
-#!/usr/bin/env python3
-# fix_scan_stamp.py
-# Republishes /scan → /scan_fixed with ros::Time::now()
-# Uses queue_size=1 and buff_size to minimize latency
+v
 
-import rospy
-from sensor_msgs.msg import LaserScan
+RESULTS: for all Frames
 
-pub = None
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000980513 Max Delay: 0.00418451
+Frame: base_link published by unknown_publisher Average Delay: -0.0491946 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0491963 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.188153 Max Delay: 0
 
-def callback(msg):
-    msg.header.stamp = rospy.Time.now()
-    pub.publish(msg)
+All Broadcasters:
+Node: unknown_publisher 99.7251 Hz, Average Delay: -0.0381375 Max Delay: 0.00418451
 
-if __name__ == "__main__":
-    rospy.init_node("fix_scan_stamp", anonymous=False)
 
-    pub = rospy.Publisher(
-        "/scan_fixed",
-        LaserScan,
-        queue_size=1        # never queue — always publish latest
-    )
 
-    rospy.Subscriber(
-        "/scan",
-        LaserScan,
-        callback,
-        queue_size=1,       # drop old scans, only process latest
-        buff_size=2**24     # large buffer so we never block on receive
-    )
+RESULTS: for all Frames
 
-    rospy.loginfo("[fix_scan_stamp] Running: /scan → /scan_fixed with corrected timestamps")
-    rospy.spin()
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000981211 Max Delay: 0.00418451
+Frame: base_link published by unknown_publisher Average Delay: -0.0491937 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0491963 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.188148 Max Delay: 0
 
+All Broadcasters:
+Node: unknown_publisher 99.8649 Hz, Average Delay: -0.0381771 Max Delay: 0.00418451
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000982339 Max Delay: 0.00418451
+Frame: base_link published by unknown_publisher Average Delay: -0.0491935 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0491968 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.188145 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 99.8544 Hz, Average Delay: -0.0381702 Max Delay: 0.00418451
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000982119 Max Delay: 0.00418451
+Frame: base_link published by unknown_publisher Average Delay: -0.0491929 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0491974 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.188155 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 99.7462 Hz, Average Delay: -0.0381243 Max Delay: 0.00418451
+^C
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000982447 Max Delay: 0.00418451
+Frame: base_link published by unknown_publisher Average Delay: -0.0491917 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0491969 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.188141 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 99.8447 Hz, Average Delay: -0.0381548 Max Delay: 0.00418451
 
 <launch>
   <!-- Bridge between base_footprint and base_link -->
