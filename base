@@ -1,12 +1,79 @@
-# In one terminal watch odom stamp
-rostopic echo /odom/header/stamp
+$ rosnode list
+/amcl
+/base_to_laser
+/diagnostic_aggregator
+/fix_scan_stamp
+/footprint_to_base
+/laser_node
+/map_server
+/mobile_base
+/mobile_base_nodelet_manager
+/move_base
+/odom_robot
+/rosout
+/rviz_1779857679059416267
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic echo /odom | grep -A2 "stamp"
+  stamp: 
+    secs: 1779858260
+    nsecs: 764141260
+--
+  stamp: 
+    secs: 1779858260
+    nsecs: 784147258
+--
+  stamp: 
+    secs: 1779858260
+    nsecs: 805117903
+--
+  stamp: 
+    secs: 1779858260
+    nsecs: 824047703
+--
+  stamp: 
+    secs: 1779858260
+    nsecs: 845072992
+--
+  stamp: 
+    secs: 1779858260
+    nsecs: 865182895
+--
+$ rostopic echo /odom/header/stamp
 
-# In another terminal watch current ROS time
-rostopic echo /clock
-# or
-python3 -c "import rospy; rospy.init_node('t'); print(rospy.Time.now())"
+secs: 1779858287
+nsecs: 101375159
+---
 
-find ~/catkin_ws -name "*.launch" | xargs grep -l "kobuki\|mobile_base"
+secs: 1779858287
+nsecs: 121237623
+---
+
+secs: 1779858287
+nsecs: 141883867
+---
+
+secs: 1779858287
+nsecs: 161781477
+---
+
+secs: 1779858287
+nsecs: 182160433
+---
+
+secs: 1779858287
+nsecs: 201100156
+---
+~$ python3 -c "import rospy; rospy.init_node('t'); print(rospy.Time.now())"
+1779858342656585693
+ubutu2004@ubutu2004-OEM-Default-string000:~$ find ~/catkin_ws -name "*.launch" | xargs grep -l "kobuki\|mobile_base"
+/home/ubutu2004/catkin_ws/src/my_robot/launch/navigation.launch
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_bumper2pc/launch/standalone.launch
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_node/launch/minimal.launch
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_node/launch/test_get_odom.launch
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_node/launch/robot_with_tf.launch
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_node/launch/test_get_yaw.launch
+/home/ubutu2004/catkin_ws/src/kobuki/kobuki_description/launch/view_model.launch
+ubutu2004@ubutu2004-OEM-Default-string000:~$ 
+
 
 
 ubutu2004@ubutu2004-OEM-Default-
