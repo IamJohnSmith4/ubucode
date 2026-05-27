@@ -16,6 +16,7 @@ rostopic echo /amcl_pose/pose/covariance | grep -E "^\[|^  [0-9]"
 
 rostopic echo /amcl_pose/pose/pose/position
 
+#!/bin/bash
 gnome-terminal \
   --tab --title="roscore" -- bash -c "roscore; exec bash" \
   --tab --title="talker" -- bash -c "sleep 3 && rosrun talker talker _serial_port:=/dev/ttyUSB1; exec bash" \
@@ -23,7 +24,49 @@ gnome-terminal \
   --tab --title="navigation" -- bash -c "sleep 7 && roslaunch my_robot navigation.launch; exec bash" \
   --tab --title="fix_scan" -- bash -c "sleep 9 && rosrun my_robot fix_scan_stamp.py; exec bash" \
   --tab --title="rviz" -- bash -c "sleep 11 && rviz; exec bash"
+EOF
+chmod +x ~/launch_robot.sh
+~/launch_robot.sh
+Run it anytime with ~/launch_robot.sh.
 
+Notes:
+
+Uses gnome-terminal (default on Ubuntu). If you use a different terminal, let me know (e.g. xterm, terminator, tilix).
+exec bash keeps each tab open after the command ends.
+Adjust sleep values if your machine is slower/faster.
+You said: why it only run roscorewhy it only run roscore2:26 PMClaude responded: The issue is that the other tabs try to run before ROS is fully ready, and also gnome-terminal tabs don't always wait for --tab flags properly in newer Ubuntu …The issue is that the other tabs try to run before ROS is fully ready, and also gnome-terminal tabs don't always wait for --tab flags properly in newer Ubuntu versions.
+Here's the fix — use a script that checks if roscore is actually running before launching the next nodes:
+bashcat > ~/launch_robot.sh << 'EOF'
+#!/bin/bash
+
+# Tab 1: roscore
+gnome-terminal --tab --title="roscore" -- bash -c "roscore; exec bash"
+
+# Wait until roscore is actually up
+echo "Waiting for roscore..."
+until rostopic list > /dev/null 2>&1; do
+  sleep 1
+done
+echo "roscore is up!"
+
+# Tab 2: talker
+gnome-terminal --tab --title="talker" -- bash -c "rosrun talker talker _serial_port:=/dev/ttyUSB1; exec bash"
+sleep 2
+
+# Tab 3: kobuki
+gnome-terminal --tab --title="kobuki" -- bash -c "roslaunch kobuki_node minimal.launch; exec bash"
+sleep 3
+
+# Tab 4: navigation
+gnome-terminal --tab --title="navigation" -- bash -c "roslaunch my_robot navigation.launch; exec bash"
+sleep 3
+
+# Tab 5: fix_scan
+gnome-terminal --tab --title="fix_scan" -- bash -c "rosrun my_robot fix_scan_stamp.py; exec bash"
+sleep 2
+
+# Tab 6: rviz
+gnome-terminal --tab --title="rviz" -- bash -c "rviz; exec bash"
 #!/usr/bin/env python3
 import rospy
 import math
