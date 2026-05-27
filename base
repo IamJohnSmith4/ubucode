@@ -1,67 +1,79 @@
-v
-
 RESULTS: for all Frames
 
 Frames:
-Frame: base_footprint published by unknown_publisher Average Delay: 0.000980513 Max Delay: 0.00418451
-Frame: base_link published by unknown_publisher Average Delay: -0.0491946 Max Delay: 0
-Frame: laser_link published by unknown_publisher Average Delay: -0.0491963 Max Delay: 0
-Frame: odom published by unknown_publisher Average Delay: -0.188153 Max Delay: 0
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000917859 Max Delay: 0.00167906
+Frame: base_link published by unknown_publisher Average Delay: -0.0991979 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.099274 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.188875 Max Delay: 0
 
 All Broadcasters:
-Node: unknown_publisher 99.7251 Hz, Average Delay: -0.0381375 Max Delay: 0.00418451
-
-
-
-RESULTS: for all Frames
-
-Frames:
-Frame: base_footprint published by unknown_publisher Average Delay: 0.000981211 Max Delay: 0.00418451
-Frame: base_link published by unknown_publisher Average Delay: -0.0491937 Max Delay: 0
-Frame: laser_link published by unknown_publisher Average Delay: -0.0491963 Max Delay: 0
-Frame: odom published by unknown_publisher Average Delay: -0.188148 Max Delay: 0
-
-All Broadcasters:
-Node: unknown_publisher 99.8649 Hz, Average Delay: -0.0381771 Max Delay: 0.00418451
+Node: unknown_publisher 79.9895 Hz, Average Delay: -0.0476114 Max Delay: 0.00167906
 
 
 
 RESULTS: for all Frames
 
 Frames:
-Frame: base_footprint published by unknown_publisher Average Delay: 0.000982339 Max Delay: 0.00418451
-Frame: base_link published by unknown_publisher Average Delay: -0.0491935 Max Delay: 0
-Frame: laser_link published by unknown_publisher Average Delay: -0.0491968 Max Delay: 0
-Frame: odom published by unknown_publisher Average Delay: -0.188145 Max Delay: 0
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000917604 Max Delay: 0.00167906
+Frame: base_link published by unknown_publisher Average Delay: -0.0991883 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0992598 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.18926 Max Delay: 0
 
 All Broadcasters:
-Node: unknown_publisher 99.8544 Hz, Average Delay: -0.0381702 Max Delay: 0.00418451
+Node: unknown_publisher 79.992 Hz, Average Delay: -0.0479011 Max Delay: 0.00167906
 
 
 
 RESULTS: for all Frames
 
 Frames:
-Frame: base_footprint published by unknown_publisher Average Delay: 0.000982119 Max Delay: 0.00418451
-Frame: base_link published by unknown_publisher Average Delay: -0.0491929 Max Delay: 0
-Frame: laser_link published by unknown_publisher Average Delay: -0.0491974 Max Delay: 0
-Frame: odom published by unknown_publisher Average Delay: -0.188155 Max Delay: 0
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000913583 Max Delay: 0.00167906
+Frame: base_link published by unknown_publisher Average Delay: -0.0991948 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0992551 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.189143 Max Delay: 0
 
 All Broadcasters:
-Node: unknown_publisher 99.7462 Hz, Average Delay: -0.0381243 Max Delay: 0.00418451
+Node: unknown_publisher 80.4076 Hz, Average Delay: -0.0482674 Max Delay: 0.00167906
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000920815 Max Delay: 0.00167906
+Frame: base_link published by unknown_publisher Average Delay: -0.0991944 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0992544 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.189276 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 80.3614 Hz, Average Delay: -0.0482626 Max Delay: 0.00167906
+
+
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000916924 Max Delay: 0.00167906
+Frame: base_link published by unknown_publisher Average Delay: -0.0991969 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0992532 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.1894 Max Delay: 0
+
+All Broadcasters:
+Node: unknown_publisher 80.3271 Hz, Average Delay: -0.0482594 Max Delay: 0.00167906
 ^C
 
 
 RESULTS: for all Frames
 
 Frames:
-Frame: base_footprint published by unknown_publisher Average Delay: 0.000982447 Max Delay: 0.00418451
-Frame: base_link published by unknown_publisher Average Delay: -0.0491917 Max Delay: 0
-Frame: laser_link published by unknown_publisher Average Delay: -0.0491969 Max Delay: 0
-Frame: odom published by unknown_publisher Average Delay: -0.188141 Max Delay: 0
+Frame: base_footprint published by unknown_publisher Average Delay: 0.000922858 Max Delay: 0.00189695
+Frame: base_link published by unknown_publisher Average Delay: -0.0991943 Max Delay: 0
+Frame: laser_link published by unknown_publisher Average Delay: -0.0992596 Max Delay: 0
+Frame: odom published by unknown_publisher Average Delay: -0.189574 Max Delay: 0
 
 All Broadcasters:
-Node: unknown_publisher 99.8447 Hz, Average Delay: -0.0381548 Max Delay: 0.00418451
+Node: unknown_publisher 79.8871 Hz, Average Delay: -0.0477577 Max Delay: 0.00189695
+
 
 <launch>
   <!-- Bridge between base_footprint and base_link -->
