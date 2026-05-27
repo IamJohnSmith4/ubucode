@@ -17,17 +17,35 @@ rostopic echo /amcl_pose/pose/covariance | grep -E "^\[|^  [0-9]"
 rostopic echo /amcl_pose/pose/pose/position
 
 #!/bin/bash
-gnome-terminal \
-  --tab --title="roscore" -- bash -c "roscore; exec bash" \
-  --tab --title="talker" -- bash -c "sleep 3 && rosrun talker talker _serial_port:=/dev/ttyUSB1; exec bash" \
-  --tab --title="kobuki" -- bash -c "sleep 5 && roslaunch kobuki_node minimal.launch; exec bash" \
-  --tab --title="navigation" -- bash -c "sleep 7 && roslaunch my_robot navigation.launch; exec bash" \
-  --tab --title="fix_scan" -- bash -c "sleep 9 && rosrun my_robot fix_scan_stamp.py; exec bash" \
-  --tab --title="rviz" -- bash -c "sleep 11 && rviz; exec bash"
-EOF
-chmod +x ~/launch_robot.sh
-~/launch_robot.sh
-Run it anytime with ~/launch_robot.sh.
+
+# Tab 1: roscore
+gnome-terminal --tab --title="roscore" -- bash -c "roscore; exec bash"
+
+# Wait until roscore is actually up
+echo "Waiting for roscore..."
+until rostopic list > /dev/null 2>&1; do
+  sleep 1
+done
+echo "roscore is up!"
+
+# Tab 2: talker
+gnome-terminal --tab --title="talker" -- bash -c "rosrun talker talker _serial_port:=/dev/ttyUSB1; exec bash"
+sleep 2
+
+# Tab 3: kobuki
+gnome-terminal --tab --title="kobuki" -- bash -c "roslaunch kobuki_node minimal.launch; exec bash"
+sleep 3
+
+# Tab 4: navigation
+gnome-terminal --tab --title="navigation" -- bash -c "roslaunch my_robot navigation.launch; exec bash"
+sleep 3
+
+# Tab 5: fix_scan
+gnome-terminal --tab --title="fix_scan" -- bash -c "rosrun my_robot fix_scan_stamp.py; exec bash"
+sleep 2
+
+# Tab 6: rviz
+gnome-terminal --tab --title="rviz" -- bash -c "rviz; exec bash"
 
 Notes:
 
