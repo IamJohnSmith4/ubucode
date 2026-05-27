@@ -12,6 +12,39 @@ rosrun my_robot fix_scan_stamp.py
 
 rosrun mt_robot REMAKE.py
 
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic hz /scan_fixed
+subscribed to [/scan_fixed]
+average rate: 10.197
+	min: 0.089s max: 0.121s std dev: 0.01334s window: 9
+average rate: 10.145
+	min: 0.089s max: 0.121s std dev: 0.01348s window: 20
+average rate: 10.107
+	min: 0.089s max: 0.121s std dev: 0.01352s window: 30
+average rate: 10.090
+	min: 0.089s max: 0.121s std dev: 0.01359s window: 40
+average rate: 10.077
+	min: 0.089s max: 0.121s std dev: 0.01360s window: 50
+average rate: 10.071
+	min: 0.089s max: 0.122s std dev: 0.01365s window: 60
+average rate: 10.065
+	min: 0.089s max: 0.122s std dev: 0.01374s window: 70
+average rate: 10.061
+	min: 0.089s max: 0.123s std dev: 0.01381s window: 80
+^Caverage rate: 10.058
+	min: 0.089s max: 0.123s std dev: 0.01383s window: 90
+ubutu2004@ubutu2004-OEM-Default-string000:~$ rostopic hz /scan
+subscribed to [/scan]
+average rate: 10.183
+	min: 0.089s max: 0.121s std dev: 0.01321s window: 9
+average rate: 10.101
+	min: 0.089s max: 0.121s std dev: 0.01366s window: 19
+average rate: 10.108
+	min: 0.086s max: 0.121s std dev: 0.01366s window: 30
+average rate: 10.086
+	min: 0.086s max: 0.121s std dev: 0.01371s window: 40
+average rate: 10.077
+	min: 0.086s max: 0.121s std dev: 0.01378s window: 50
+average rate: 10.071
 
 #!/usr/bin/env python3
 import rospy
