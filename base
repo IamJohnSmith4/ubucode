@@ -1,109 +1,37 @@
-$ python3 - << 'EOF'
-> import rospy
-> from sensor_msgs.msg import LaserScan
-> 
-> def cb(msg):
->     ros_now = rospy.Time.now().to_sec()
->     scan_stamp = msg.header.stamp.to_sec()
->     diff = ros_now - scan_stamp
->     print(f"ROS now: {ros_now:.3f}  scan stamp: {scan_stamp:.3f}  diff: {diff:.3f}s  frame: {msg.header.frame_id}")
-> 
-> rospy.init_node("check_scan_delay")
-> rospy.Subscriber("/scan", LaserScan, cb)
-> rospy.spin()
-> EOF
-ROS now: 1779859441.352  scan stamp: 1779859441.260  diff: 0.092s  frame: laser_link
-ROS now: 1779859441.442  scan stamp: 1779859441.351  diff: 0.092s  frame: laser_link
-ROS now: 1779859441.533  scan stamp: 1779859441.441  diff: 0.092s  frame: laser_link
-ROS now: 1779859441.654  scan stamp: 1779859441.532  diff: 0.122s  frame: laser_link
-ROS now: 1779859441.745  scan stamp: 1779859441.653  diff: 0.092s  frame: laser_link
-ROS now: 1779859441.835  scan stamp: 1779859441.744  diff: 0.092s  frame: laser_link
-ROS now: 1779859441.956  scan stamp: 1779859441.835  diff: 0.122s  frame: laser_link
-ROS now: 1779859442.047  scan stamp: 1779859441.955  diff: 0.092s  frame: laser_link
-ROS now: 1779859442.138  scan stamp: 1779859442.046  diff: 0.092s  frame: laser_link
-ROS now: 1779859442.229  scan stamp: 1779859442.137  diff: 0.092s  frame: laser_link
-ROS now: 1779859442.350  scan stamp: 1779859442.228  diff: 0.122s  frame: laser_link
-ROS now: 1779859442.440  scan stamp: 1779859442.349  diff: 0.091s  frame: laser_link
-ROS now: 1779859442.531  scan stamp: 1779859442.439  diff: 0.091s  frame: laser_link
-ROS now: 1779859442.652  scan stamp: 1779859442.530  diff: 0.122s  frame: laser_link
-ROS now: 1779859442.743  scan stamp: 1779859442.651  diff: 0.092s  frame: laser_link
-ROS now: 1779859442.833  scan stamp: 1779859442.742  diff: 0.092s  frame: laser_link
-ROS now: 1779859442.924  scan stamp: 1779859442.832  diff: 0.091s  frame: laser_link
-ROS now: 1779859443.045  scan stamp: 1779859442.923  diff: 0.122s  frame: laser_link
-ROS now: 1779859443.136  scan stamp: 1779859443.044  diff: 0.092s  frame: laser_link
+#!/usr/bin/env python3
+# fix_scan_stamp.py
+# Republishes /scan → /scan_fixed with ros::Time::now()
+# Uses queue_size=1 and buff_size to minimize latency
 
+import rospy
+from sensor_msgs.msg import LaserScan
 
+pub = None
 
-ubutu2004@ubutu2004-OEM-Default-
-<launch>
-  <!-- Bridge between base_footprint and base_link -->
-  <node pkg="tf" type="static_transform_publisher" 
-        name="footprint_to_base"
-        args="0 0 0 0 0 0 base_footprint base_link 50"/>
+def callback(msg):
+    msg.header.stamp = rospy.Time.now()
+    pub.publish(msg)
 
-  <!-- Laser TF — matches slam.launch exactly -->
-  <node pkg="tf" type="static_transform_publisher" 
-        name="base_to_laser"
-        args="0 0 0.2 0 0 0 base_link laser_link 50"/>
+if __name__ == "__main__":
+    rospy.init_node("fix_scan_stamp", anonymous=False)
 
-  <!-- map_server -->
-  <node pkg="map_server" type="map_server" name="map_server"
-        args="/home/ubutu2004/map/final.yaml"
-        output="screen"/>
+    pub = rospy.Publisher(
+        "/scan_fixed",
+        LaserScan,
+        queue_size=1        # never queue — always publish latest
+    )
 
-  <!-- AMCL -->
-  <node pkg="amcl" type="amcl" name="amcl" output="screen"
-        respawn="true">
-    <param name="use_map_topic"       value="false"/>
-    <param name="tf_broadcast"        value="true"/>
-    <param name="odom_model_type"     value="diff"/>
-    <param name="odom_frame_id"       value="odom"/>
-    <param name="base_frame_id"       value="base_footprint"/>
-    <param name="global_frame_id"     value="map"/>
-    <param name="laser_model_type"    value="likelihood_field"/>
-    <param name="min_particles"       value="500"/>
-    <param name="max_particles"       value="2000"/>
-    <param name="laser_max_range"     value="7.0"/>
-    <param name="laser_max_beams"     value="90"/>
-    <param name="update_min_d"        value="0.1"/>
-    <param name="update_min_a"        value="0.1"/>
-    <param name="transform_tolerance" value="1.0"/>
-    <param name="initial_pose_x"      value="0.0"/>
-    <param name="initial_pose_y"      value="0.0"/>
-    <param name="initial_pose_a"      value="0.0"/>
-    <param name="gui_publish_rate"    value="10.0"/>
-    <param name="recovery_alpha_slow" value="0.001"/>
-    <param name="recovery_alpha_fast" value="0.1"/>
-  </node>
+    rospy.Subscriber(
+        "/scan",
+        LaserScan,
+        callback,
+        queue_size=1,       # drop old scans, only process latest
+        buff_size=2**24     # large buffer so we never block on receive
+    )
 
-  <node pkg="move_base" type="move_base" name="move_base" output="screen">
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="global_costmap"/>
-    <rosparam file="$(find my_robot)/config/costmap_common.yaml"
-              command="load" ns="local_costmap"/>
-    <rosparam file="$(find my_robot)/config/global_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/local_costmap.yaml"
-              command="load"/>
-    <rosparam file="$(find my_robot)/config/base_local_planner.yaml"
-              command="load"/>
-    <param name="base_global_planner"  value="navfn/NavfnROS"/>
-    <param name="base_local_planner"   value="base_local_planner/TrajectoryPlannerROS"/>
-    <remap from="cmd_vel" to="/mobile_base/commands/velocity"/>
+    rospy.loginfo("[fix_scan_stamp] Running: /scan → /scan_fixed with corrected timestamps")
+    rospy.spin()
 
-    <!-- ADD THESE to stop spinning -->
-    <param name="controller_frequency"    value="5.0"/>
-    <param name="planner_patience"        value="10.0"/>
-    <param name="controller_patience"     value="20.0"/>
-    <param name="conservative_reset_dist" value="3.0"/>
-    <param name="recovery_behavior_enabled" value="false"/>
-    <param name="clearing_rotation_allowed" value="false"/>
-    <param name="planner_frequency"    value="1.0"/>
-    
-</node>
-   
-
-</launch>
 
 <launch>
   <!-- Bridge between base_footprint and base_link -->
@@ -146,7 +74,8 @@ ubutu2004@ubutu2004-OEM-Default-
     <param name="laser_max_beams"     value="90"/>
     <param name="update_min_d"        value="0.1"/>
     <param name="update_min_a"        value="0.1"/>
-    <param name="transform_tolerance" value="0.5"/>  <!-- reduced from 1.0 now that timestamps are fixed -->
+    <param name="transform_tolerance"    value="0.2"/>  <!-- tight now that scan stamps are fixed -->
+    <param name="transform_publish_delta" value="0.05"/> <!-- publish map->odom TF more frequently -->
     <param name="initial_pose_x"      value="0.0"/>
     <param name="initial_pose_y"      value="0.0"/>
     <param name="initial_pose_a"      value="0.0"/>
@@ -185,5 +114,9 @@ ubutu2004@ubutu2004-OEM-Default-
   </node>
 
 </launch>
+
+
+
+
 
 
