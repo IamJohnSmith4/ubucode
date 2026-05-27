@@ -1,20 +1,62 @@
 rosnode info /mobile_base
+--------------------------------------
+Node [/mobile_base]
+Publications: 
+ * /mobile_base_nodelet_manager/bond [bond/Status]
+ * /rosout [rosgraph_msgs/Log]
 
-python3 - << 'EOF'
-import rospy
-from nav_msgs.msg import Odometry
-import time
+Subscriptions: 
+ * /mobile_base_nodelet_manager/bond [bond/Status]
 
-def cb(msg):
-    ros_now = rospy.Time.now().to_sec()
-    odom_stamp = msg.header.stamp.to_sec()
-    diff = ros_now - odom_stamp
-    print(f"ROS now: {ros_now:.3f}  odom stamp: {odom_stamp:.3f}  diff: {diff:.3f}s")
+Services: 
+ * /mobile_base/get_loggers
+ * /mobile_base/set_logger_level
 
-rospy.init_node("check_odom_delay")
-rospy.Subscriber("/odom", Odometry, cb)
-rospy.spin()
-EOF
+
+contacting node http://ubutu2004-OEM-Default-string000:44461/ ...
+Pid: 2212
+Connections:
+ * topic: /rosout
+    * to: /rosout
+    * direction: outbound (34149 - 127.0.0.1:49722) [12]
+    * transport: TCPROS
+ * topic: /mobile_base_nodelet_manager/bond
+    * to: /mobile_base
+    * direction: outbound
+    * transport: INTRAPROCESS
+ * topic: /mobile_base_nodelet_manager/bond
+    * to: /mobile_base_nodelet_manager
+    * direction: outbound (34149 - 127.0.0.1:49738) [13]
+    * transport: TCPROS
+ * topic: /mobile_base_nodelet_manager/bond
+    * to: /mobile_base (http://ubutu2004-OEM-Default-string000:44461/)
+    * direction: inbound
+    * transport: INTRAPROCESS
+ * topic: /mobile_base_nodelet_manager/bond
+    * to: /mobile_base_nodelet_manager (http://ubutu2004-OEM-Default-string000:33223/)
+    * direction: inbound (55830 - ubutu2004-OEM-Default-string000:52409) [10]
+    * transport: TCPROS
+
+ubutu2004@ubutu2004-OEM-Default-string000:~$ python3 - << 'EOF'
+> import rospy
+> from nav_msgs.msg import Odometry
+> import time
+> 
+> def cb(msg):
+>     ros_now = rospy.Time.now().to_sec()
+>     odom_stamp = msg.header.stamp.to_sec()
+>     diff = ros_now - odom_stamp
+>     print(f"ROS now: {ros_now:.3f}  odom stamp: {odom_stamp:.3f}  diff: {diff:.3f}s")
+> 
+> rospy.init_node("check_odom_delay")
+> rospy.Subscriber("/odom", Odometry, cb)
+> rospy.spin()
+> EOF
+ROS now: 1779859211.939  odom stamp: 1779859211.938  diff: 0.001s
+ROS now: 1779859211.959  odom stamp: 1779859211.958  diff: 0.001s
+ROS now: 1779859211.979  odom stamp: 1779859211.978  diff: 0.001s
+ROS now: 1779859211.999  odom stamp: 1779859211.997  diff: 0.001s
+ROS now: 1779859212.020  odom stamp: 1779859212.018  diff: 0.002s
 
 
 
