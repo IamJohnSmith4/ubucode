@@ -21,24 +21,28 @@ current_progress   = 0
 velocity_publisher = None
 
 # ==================================================
-# NODE MAP  (Node 5 removed)
+# NODE MAP
 # ==================================================
 NODE_POSES = {
     1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.0},
     2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.002},
     3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.002},
+    5: {"x":  4.009, "y":  -0.575, "yaw_rad":  0.0},
 }
 
 # ==================================================
 # NODE PATH SEQUENCES
-# FORWARD  (target > current): sequence from Node 1
-# BACKWARD (target < current): direct only
-# (1→2) and (1→3) use hardcoded moves first, then nav
+# Only used to determine intermediate waypoints
+# between non-adjacent nodes.
+# The execute_path() method slices this dynamically
+# based on current_location, so the robot never
+# backtracks to Node 1 when it is already further.
 # ==================================================
-NODE_PATH_SEQUENCES = {
+NODE_FULL_SEQUENCES = {
     1: [1],
     2: [1, 2],
     3: [1, 2, 3],
+    5: [5],   # Node 5 is a standalone home-area node
 }
 
 
@@ -105,7 +109,6 @@ class MovementLogger:
         return direction
 
 
-
 # ==================================================
 # ROBOT CONTROL CLASS
 # ==================================================
@@ -153,8 +156,19 @@ class OdomRobot:
         self.rotate(math.radians(180))
         self.reset_home()
         is_navigating = False
-        current_location = 1
-        rospy.loginfo("=== ROBOT READY — current_location set to Node 1 ===")
+
+        # --------------------------------------------------
+        # After home sequence: set AMCL initial pose to
+        # Node 5 so RViz teleports the robot there.
+        # --------------------------------------------------
+        node5 = NODE_POSES[5]
+        rospy.loginfo("=== Setting AMCL initial pose → Node 5 ===")
+        self.set_initial_pose(node5["x"], node5["y"], node5["yaw_rad"])
+        rospy.sleep(1.0)   # give AMCL time to receive the pose
+
+        global current_location
+        current_location = 5
+        rospy.loginfo("=== ROBOT READY — current_location set to Node 5 ===")
 
         self._wait_for_amcl(timeout=10.0)
         rospy.loginfo("=== READY ===")
@@ -240,14 +254,17 @@ class OdomRobot:
         self.move_forward(0.5)
         self.rotate(math.radians(180))
         self.reset_home()
-        current_location = 1
-        is_navigating = False
-        rospy.loginfo("--- Home Sequence Complete: at Node 1 ---")
 
-    # --------------------------------------------------
-    # MOTION PRIMITIVES  (used by home sequence &
-    #                     hardcoded path prefixes)
-    # --------------------------------------------------
+        # Re-teleport AMCL to Node 5 after manual home sequence too
+        node5 = NODE_POSES[5]
+        rospy.loginfo("--- Setting AMCL pose → Node 5 ---")
+        self.set_initial_pose(node5["x"], node5["y"], node5["yaw_rad"])
+        rospy.sleep(1.0)
+
+        current_location = 5
+        is_navigating = False
+        rospy.loginfo("--- Home Sequence Complete: at Node 5 ---")
+
     # --------------------------------------------------
     # MOTION PRIMITIVES (used by home sequence only)
     # --------------------------------------------------
@@ -383,25 +400,61 @@ class OdomRobot:
 
     # --------------------------------------------------
     # EXECUTE PATH
-    # FORWARD  (target > current): nav through sequence
-    # BACKWARD (target < current): direct nav to target
+    #
+    # Uses NODE_FULL_SEQUENCES to find intermediate
+    # waypoints, but slices from current_location so
+    # the robot NEVER goes back to an earlier node.
+    #
+    # Example: current=2, target=3
+    #   full sequence for 3 → [1, 2, 3]
+    #   slice after node 2  → [3]          ← only nav to 3
+    #
+    # Backward (target < current): direct nav only.
+    # Node 5 is a standalone node — always direct nav.
     # --------------------------------------------------
     def execute_path(self, start, target):
         global current_location
 
+        # ── Node 5 is always reached/left via direct nav ──
+        if target == 5 or current_location == 5:
+            rospy.loginfo(f"[Path] DIRECT nav {current_location} → {target}")
+            success = self.navigate_to_node(target)
+            if success:
+                current_location = target
+            return success
+
         going_forward = target > current_location
 
         if not going_forward:
+            # Backward — direct nav to target
             rospy.loginfo(f"[Path] BACKWARD {current_location} → {target} | direct nav")
             success = self.navigate_to_node(target)
             if success:
                 current_location = target
             return success
 
-        # FORWARD — follow sequence
-        waypoints   = NODE_PATH_SEQUENCES.get(target, [target])
+        # ── Forward — slice full sequence so we skip nodes
+        #    the robot has already passed ──────────────────
+        full_seq = NODE_FULL_SEQUENCES.get(target, [target])
+
+        # Find where current_location sits in the sequence
+        try:
+            slice_start = full_seq.index(current_location) + 1
+        except ValueError:
+            # current_location not in sequence → start from beginning
+            slice_start = 0
+
+        waypoints   = full_seq[slice_start:]
         total_steps = len(waypoints)
-        rospy.loginfo(f"[Path] FORWARD {current_location} → {target} | sequence: {waypoints}")
+
+        if not waypoints:
+            rospy.loginfo(f"[Path] Already at or past Node {target}")
+            return True
+
+        rospy.loginfo(
+            f"[Path] FORWARD {current_location} → {target} | "
+            f"remaining waypoints: {waypoints}"
+        )
 
         for step_idx, waypoint in enumerate(waypoints, start=1):
             rospy.loginfo(f"[Path] Step {step_idx}/{total_steps} — nav to Node {waypoint}")
@@ -438,7 +491,20 @@ def handle_command():
         return jsonify({"status": "error",
                         "message": f"Node {target} not in NODE_POSES"}), 400
 
-    planned_sequence = NODE_PATH_SEQUENCES.get(target, [target])
+    # Build the planned sequence the same slice-aware way
+    if target == 5 or current_location == 5:
+        planned_sequence = [target]
+    else:
+        going_forward = target > current_location
+        if not going_forward:
+            planned_sequence = [target]
+        else:
+            full_seq = NODE_FULL_SEQUENCES.get(target, [target])
+            try:
+                slice_start = full_seq.index(current_location) + 1
+            except ValueError:
+                slice_start = 0
+            planned_sequence = full_seq[slice_start:] or [target]
 
     def run_and_finish(s, t):
         global is_navigating, current_location, current_progress
@@ -496,7 +562,7 @@ def handle_reset_home():
     threading.Thread(target=my_robot.execute_home_sequence).start()
     return jsonify({
         "status":  "starting",
-        "message": "Executing home sequence → Node 1",
+        "message": "Executing home sequence → Node 5",
     }), 200
 
 
@@ -551,7 +617,7 @@ if __name__ == "__main__":
 
     my_robot = OdomRobot(pub=velocity_publisher)
 
-    current_location = 1
+    current_location = 5
     is_navigating    = False
 
     print("--- Robot Server Ready on Port 5000 ---")
