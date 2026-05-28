@@ -330,6 +330,32 @@ class OdomRobot:
         self.pub.publish(Twist())
         rospy.sleep(0.3)
 
+
+    # --------------------------------------------------
+    # NUDGE LEFT  — rotate 90° left, move 20cm, rotate back
+    # Called after reaching Node 6 to bias robot to left
+    # wall before continuing up the corridor
+    # --------------------------------------------------
+    def nudge_left(self, distance=0.20):
+        rospy.loginfo(f"[Nudge] Shifting left {distance*100:.0f}cm")
+        original_yaw = self.yaw
+
+        # Step 1 — rotate 90° left
+        self.rotate(math.radians(90))
+        rospy.sleep(0.2)
+
+        # Step 2 — move forward (now facing left relative to corridor)
+        self.move_forward(distance)
+        rospy.sleep(0.2)
+
+        # Step 3 — rotate back to original heading
+        error = math.atan2(math.sin(original_yaw - self.yaw),
+                           math.cos(original_yaw - self.yaw))
+        self.rotate(error)
+        rospy.sleep(0.2)
+
+        rospy.loginfo("[Nudge] Done — resuming navigation")
+
     # --------------------------------------------------
     # move_base NAVIGATION (single node)
     # --------------------------------------------------
@@ -466,6 +492,10 @@ class OdomRobot:
                 return False
             current_location = waypoint
             rospy.loginfo(f"[Path] ✓ Node {waypoint} reached.")
+            # After Node 6 — nudge left 20cm to hug left wall in corridor
+            if waypoint == 6:
+                rospy.loginfo("[Path] Node 6 reached — executing left nudge")
+                self.nudge_left(distance=0.20)
             if step_idx < total_steps:
                 rospy.sleep(0.5)
 
