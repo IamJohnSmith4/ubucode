@@ -30,6 +30,7 @@ NODE_POSES = {
     3: {"x":  9.803, "y":  22.450, "yaw_rad":  0.002},
     5: {"x":  4.009, "y":  -0.575, "yaw_rad":  0.0},
     6: {"x": 11.242, "y":   5.049, "yaw_rad":  0.0}, 
+    7: {"x": 10.741, "y":  15.179, "yaw_rad":  0.002}, # Added Node 7
 }
 
 # ==================================================
@@ -38,12 +39,14 @@ NODE_POSES = {
 NODE_FULL_SEQUENCES = {
     1: [1],
     2: [1, 6, 2],       
-    3: [1, 6, 2, 3],    
+    3: [1, 6, 2, 7, 3], # Updated to pass through Node 7    
     5: [5],
     6: [1, 6],
+    7: [1, 6, 2, 7],
     "5->6": [5, 6],
     "5->2": [5, 6, 2],  
-    "5->3": [5, 6, 3],  
+    "5->7": [5, 6, 2, 7],
+    "5->3": [5, 6, 2, 7, 3], # Updated to route via 7
 }
 
 
@@ -120,7 +123,7 @@ class MovementLogger:
 # ==================================================
 class OdomRobot:
     def __init__(self, pub):
-        rospy.init_node("odom_robot", disable_signals=True) # Prevent ROS from hijacking SIGINT
+        rospy.init_node("odom_robot", disable_signals=True) 
         self.pub = pub
 
         # --- Odometry ---
@@ -153,7 +156,6 @@ class OdomRobot:
         except rospy.ROSException:
             rospy.logwarn("Timeout waiting for /odom topic!")
 
-        # Async initialisation sequence to avoid blocking Flask launch
         threading.Thread(target=self._async_boot_sequence, daemon=True).start()
 
     def _async_boot_sequence(self):
@@ -173,7 +175,6 @@ class OdomRobot:
         with state_lock:
             is_navigating = False
 
-        # Set AMCL initial pose to Node 5
         node5 = NODE_POSES[5]
         rospy.loginfo("=== Setting AMCL initial pose → Node 5 ===")
         self.set_initial_pose(node5["x"], node5["y"], node5["yaw_rad"])
@@ -410,35 +411,43 @@ class OdomRobot:
     def execute_path(self, start, target):
         global current_location
 
-        if target == 5 or (current_location == 5 and target < 1):
+        # Specific route request handling
+        if current_location == 2 and target == 3:
+            waypoints = [7, 3]
+            rospy.loginfo(f"[Path] Special Route Active: 2 → 7 → 3")
+        elif current_location == 3 and target == 2:
+            waypoints = [7, 2]
+            rospy.loginfo(f"[Path] Special Route Active: 3 → 7 → 2")
+        elif target == 5 or (current_location == 5 and target < 1):
             rospy.loginfo(f"[Path] DIRECT nav {current_location} → {target}")
             success = self.navigate_to_node(target)
             if success:
                 with state_lock:
                     current_location = target
             return success
-
-        going_forward = target > current_location
-
-        if not going_forward:
-            rospy.loginfo(f"[Path] BACKWARD {current_location} → {target} | direct nav")
-            success = self.navigate_to_node(target)
-            if success:
-                with state_lock:
-                    current_location = target
-            return success
-
-        if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
-            full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
-            slice_start = 1  
         else:
-            full_seq = NODE_FULL_SEQUENCES.get(target, [target])
-            try:
-                slice_start = full_seq.index(current_location) + 1
-            except ValueError:
-                slice_start = 0
+            going_forward = target > current_location
 
-        waypoints   = full_seq[slice_start:]
+            if not going_forward:
+                rospy.loginfo(f"[Path] BACKWARD {current_location} → {target} | direct nav")
+                success = self.navigate_to_node(target)
+                if success:
+                    with state_lock:
+                        current_location = target
+                return success
+
+            if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
+                full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
+                slice_start = 1  
+            else:
+                full_seq = NODE_FULL_SEQUENCES.get(target, [target])
+                try:
+                    slice_start = full_seq.index(current_location) + 1
+                except ValueError:
+                    slice_start = 0
+
+            waypoints = full_seq[slice_start:]
+
         total_steps = len(waypoints)
 
         if not waypoints:
@@ -446,8 +455,8 @@ class OdomRobot:
             return True
 
         rospy.loginfo(
-            f"[Path] FORWARD {current_location} → {target} | "
-            f"remaining waypoints: {waypoints}"
+            f"[Path] Running path from {current_location} → {target} | "
+            f"Waypoints remaining: {waypoints}"
         )
 
         for step_idx, waypoint in enumerate(waypoints, start=1):
@@ -497,7 +506,12 @@ def handle_command():
     if target not in NODE_POSES:
         return jsonify({"status": "error", "message": f"Node {target} not in NODE_POSES"}), 400
 
-    if target == 5 or current_location == 5:
+    # Handle sequence visualization response for Flask endpoint
+    if current_location == 2 and target == 3:
+        planned_sequence = [7, 3]
+    elif current_location == 3 and target == 2:
+        planned_sequence = [7, 2]
+    elif target == 5 or current_location == 5:
         if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
             full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
             planned_sequence = full_seq[1:]
