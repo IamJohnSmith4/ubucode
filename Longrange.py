@@ -4,28 +4,48 @@ import math
 import signal
 import sys
 import threading
-from geometry_msgs.msg import Twist, PoseWithCovarianceStamped, PoseStamped
+from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import LaserScan
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from tf.transformations import euler_from_quaternion
 from flask import Flask, request, jsonify
+from sensor_msgs.msg import LaserScan   # ← เพิ่ม
 import actionlib
 
 # ==================================================
 # GLOBAL SETTINGS & STATE
 # ==================================================
-is_navigating    = False
-current_location = 1
-current_progress = 0
+is_navigating      = False
+current_location   = 1
+current_progress   = 0
 velocity_publisher = None
 
+# ==================================================
+# NODE MAP
+# ==================================================
 NODE_POSES = {
-    1:  {"x":  2.379, "y":  -0.639, "yaw":  0.012},
-    2:  {"x": 12.455, "y":  13.314, "yaw":  0.002},
-    3:  {"x": 16.521, "y":  22.191, "yaw":  0.002},
+    1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.0},
+    2: {"x":  9.115, "y":  14.794, "yaw_rad":  0.002},
+    3: {"x":  9.803, "y":  22.450, "yaw_rad":  0.002},
+    5: {"x":  4.009, "y":  -0.575, "yaw_rad":  0.0},
+    6: {"x": 11.606, "y":   5.964, "yaw_rad":  0.0},
 }
+
+# ==================================================
+# NODE PATH SEQUENCES
+# ==================================================
+NODE_FULL_SEQUENCES = {
+    1: [1],
+    2: [1, 6, 2],
+    3: [1, 6, 2, 3],
+    5: [5],
+    6: [1, 6],
+    "5->6": [5, 6],
+    "5->2": [5, 6, 2],
+    "5->3": [5, 6, 3],
+}
+
 
 def signal_handler(sig, frame):
     print("\n[INFO] Ctrl+C — Stopping Robot.")
@@ -38,108 +58,86 @@ signal.signal(signal.SIGINT, signal_handler)
 
 
 # ==================================================
-# PID CONTROLLER
+# MOVEMENT DIRECTION LOGGER
 # ==================================================
-class PID:
-    def __init__(self, kp, ki, kd, min_val, max_val):
-        self.kp, self.ki, self.kd = kp, ki, kd
-        self.min_val, self.max_val = min_val, max_val
-        self.integral, self.last_error = 0.0, 0.0
+class MovementLogger:
+    LINEAR_THRESHOLD      = 0.02
+    ANGULAR_THRESHOLD     = 0.02
+    FORWARD_DOT_THRESHOLD = 0.0
 
-    def compute(self, error, dt):
-        self.integral += error * dt
-        derivative = (error - self.last_error) / dt
-        output = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
-        self.last_error = error
-        return max(min(output, self.max_val), self.min_val)
-
-
-# ==================================================
-# OBSTACLE MONITOR
-# ตรวจจับสิ่งกีดขวางจาก /scan แบบ real-time
-# แบ่ง scan เป็น 3 โซน: ซ้าย / หน้า / ขวา
-# ==================================================
-class ObstacleMonitor:
     def __init__(self):
-        self.DANGER_DIST  = 0.50   # เมตร — อันตราย หยุดทันที
-        self.WARNING_DIST = 0.80   # เมตร — เตือน ชะลอ
+        self.prev_x   = None
+        self.prev_y   = None
+        self.prev_yaw = None
+        self.last_logged_direction = None
 
-        self.front_dist = 999.0
-        self.left_dist  = 999.0
-        self.right_dist = 999.0
-        self.lock = threading.Lock()
+    def reset(self):
+        self.prev_x   = None
+        self.prev_y   = None
+        self.prev_yaw = None
+        self.last_logged_direction = None
 
-        rospy.Subscriber("/scan", LaserScan, self._scan_callback)
-        rospy.loginfo("[ObstacleMonitor] Subscribed to /scan")
-
-    def _scan_callback(self, msg):
-        ranges = msg.ranges
-        n = len(ranges)
-        if n == 0:
-            return
-
-        def safe_min(indices):
-            vals = [ranges[i] for i in indices
-                    if i < n
-                    and not math.isnan(ranges[i])
-                    and not math.isinf(ranges[i])
-                    and ranges[i] > 0.01]
-            return min(vals) if vals else 999.0
-
-        # แบ่ง 3 โซน (360 ray, index 0 = หน้า)
-        front_idx = list(range(0, 30)) + list(range(n - 30, n))  # ±30° หน้า
-        left_idx  = list(range(30, 120))                          # 30°–120° ซ้าย
-        right_idx = list(range(n - 120, n - 30))                  # 240°–330° ขวา
-
-        with self.lock:
-            self.front_dist = safe_min(front_idx)
-            self.left_dist  = safe_min(left_idx)
-            self.right_dist = safe_min(right_idx)
-
-    def get_distances(self):
-        with self.lock:
-            return self.front_dist, self.left_dist, self.right_dist
-
-    def is_front_blocked(self):
-        return self.front_dist < self.DANGER_DIST
-
-    def is_front_warning(self):
-        return self.front_dist < self.WARNING_DIST
-
-    def get_status(self):
-        f, l, r = self.get_distances()
-        return {
-            "front_dist":    round(f, 3),
-            "left_dist":     round(l, 3),
-            "right_dist":    round(r, 3),
-            "front_blocked": f < self.DANGER_DIST,
-            "front_warning": f < self.WARNING_DIST,
-            "safe_side":     "left" if l > r else "right",
-        }
+    def update(self, x, y, yaw):
+        if self.prev_x is None:
+            self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
+            return None
+        dx   = x - self.prev_x
+        dy   = y - self.prev_y
+        dyaw = math.atan2(math.sin(yaw - self.prev_yaw),
+                          math.cos(yaw - self.prev_yaw))
+        lin_dist = math.sqrt(dx**2 + dy**2)
+        moving   = lin_dist  > self.LINEAR_THRESHOLD
+        rotating = abs(dyaw) > self.ANGULAR_THRESHOLD
+        direction = None
+        if moving and rotating:
+            direction = "↺ Turn Left" if dyaw > 0 else "↻ Turn Right"
+        elif moving:
+            hx  = math.cos(self.prev_yaw)
+            hy  = math.sin(self.prev_yaw)
+            nx  = dx / lin_dist
+            ny  = dy / lin_dist
+            dot = nx * hx + ny * hy
+            direction = "⬆ Forward" if dot >= self.FORWARD_DOT_THRESHOLD else "⬇ Backward"
+        elif rotating:
+            direction = "↺ Turn Left" if dyaw > 0 else "↻ Turn Right"
+        else:
+            direction = "◼ Stationary"
+        self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
+        if direction != self.last_logged_direction:
+            rospy.loginfo(f"[Move] {direction}  "
+                          f"Δpos={lin_dist*100:.1f}cm  Δyaw={math.degrees(dyaw):.1f}°")
+            self.last_logged_direction = direction
+        return direction
 
 
 # ==================================================
 # ROBOT CONTROL CLASS
 # ==================================================
 class OdomRobot:
-    def __init__(self):
+    def __init__(self, pub):
         global is_navigating
         rospy.init_node("odom_robot")
-        self.pub = velocity_publisher
+        self.pub = pub
 
         # --- Odometry ---
         self.raw_x, self.raw_y, self.raw_yaw = 0.0, 0.0, 0.0
-        self.x, self.y, self.yaw = 0.0, 0.0, 0.0
+        self.x, self.y, self.yaw             = 0.0, 0.0, 0.0
         self.offset_x, self.offset_y, self.offset_yaw = 0.0, 0.0, 0.0
 
         # --- AMCL ---
         self.amcl_x, self.amcl_y, self.amcl_yaw = 0.0, 0.0, 0.0
         self.amcl_covariance = 1.0
-        self.amcl_ready = False
-        self.amcl_lock  = threading.Lock()
+        self.amcl_ready      = False
+        self.amcl_lock       = threading.Lock()
 
-        # --- Obstacle Monitor ---
-        self.obstacle = ObstacleMonitor()
+        # --- Laser ---
+        self.laser_front = 999.0
+        self.laser_back  = 999.0
+        self.laser_left  = 999.0
+        self.laser_right = 999.0
+
+        # --- Movement Logger ---
+        self.movement_logger = MovementLogger()
 
         # --- move_base ---
         rospy.loginfo("[move_base] Connecting...")
@@ -150,36 +148,89 @@ class OdomRobot:
         # --- Subscribers ---
         rospy.Subscriber("/odom",      Odometry,                  self.odom_callback)
         rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.amcl_callback)
-
-        self.pid_straight = PID(kp=1.8, ki=0.005, kd=0.1, min_val=-0.4, max_val=0.4)
-        self.pid_rotate   = PID(kp=1.0, ki=0.01,  kd=0.1, min_val=-0.3, max_val=0.3)
+        rospy.Subscriber("/scan",      LaserScan,                 self.laser_callback)  # ← เพิ่ม
 
         rospy.loginfo("Waiting for odom...")
         rospy.wait_for_message("/odom", Odometry)
         rospy.sleep(1)
 
-        # --- Home Sequence ---
-        self.reset_home()
+        # --- Home Sequence on boot ---
         rospy.loginfo("=== START HOME SEQUENCE ===")
         is_navigating = True
+        self.reset_home()
         self.move_forward(2.5)
         self.rotate(math.radians(-90))
         self.move_forward(0.5)
-        self.rotate(math.radians(180))
+        self.rotate(math.radians(90))
         self.reset_home()
+        self.move_until_clear(target_dist=0.5)  # ← เพิ่ม: ปรับระยะห่างกำแพงด้วย laser
         is_navigating = False
-        rospy.loginfo("=== ROBOT READY ===")
+
+        # After home sequence: set AMCL initial pose to Node 5
+        node5 = NODE_POSES[5]
+        rospy.loginfo("=== Setting AMCL initial pose → Node 5 ===")
+        self.set_initial_pose(node5["x"], node5["y"], node5["yaw_rad"])
+        rospy.sleep(1.0)
+
+        global current_location
+        current_location = 5
+        rospy.loginfo("=== ROBOT READY — current_location set to Node 5 ===")
 
         self._wait_for_amcl(timeout=10.0)
-
-        # ตั้ง AMCL = Node 1 ทันทีหลัง Home Sequence เสร็จ
-        n1 = NODE_POSES[1]
-        self.set_initial_pose(n1["x"], n1["y"], n1["yaw"])
-        rospy.loginfo(f"[AMCL] Initial pose set to Node 1: x={n1['x']} y={n1['y']} yaw={n1['yaw']}°")
+        rospy.loginfo("=== READY ===")
 
     # --------------------------------------------------
-    # CALLBACKS
+    # LASER CALLBACK  ← เพิ่ม
     # --------------------------------------------------
+    def laser_callback(self, msg):
+        """อ่านระยะ 360° แบ่ง 4 ทิศ ±30° ต่อทิศ"""
+        n        = len(msg.ranges)
+        half_fov = math.radians(30)
+        idx_range = int(half_fov / msg.angle_increment)
+
+        def sector_min(center_deg):
+            center_rad = math.radians(center_deg)
+            idx_center = int((center_rad - msg.angle_min) / msg.angle_increment) % n
+            indices = [(idx_center + i) % n for i in range(-idx_range, idx_range + 1)]
+            valid = [msg.ranges[i] for i in indices
+                     if msg.range_min < msg.ranges[i] < msg.range_max]
+            return min(valid) if valid else 999.0
+
+        self.laser_front = sector_min(0)     # ด้านหน้า
+        self.laser_back  = sector_min(180)   # ด้านหลัง
+        self.laser_left  = sector_min(90)    # ด้านซ้าย
+        self.laser_right = sector_min(-90)   # ด้านขวา
+
+    # --------------------------------------------------
+    # MOVE UNTIL CLEAR  ← เพิ่ม
+    # --------------------------------------------------
+    def move_until_clear(self, target_dist=0.5, max_dist=3.0):
+        """เดินหน้าจนกว่าด้านหน้าจะห่างกำแพง target_dist เมตร"""
+        rate = rospy.Rate(20)
+        start_x, start_y = self.x, self.y
+        rospy.loginfo(f"[Laser] ระยะหน้าตอนนี้: {self.laser_front:.2f} ม. | เป้าหมาย: {target_dist} ม.")
+
+        while not rospy.is_shutdown():
+            traveled = math.sqrt((self.x - start_x)**2 + (self.y - start_y)**2)
+
+            if self.laser_front >= target_dist:
+                rospy.loginfo(f"[Laser] ✓ ห่างกำแพง {self.laser_front:.2f} ม. — หยุด")
+                break
+
+            if traveled >= max_dist:
+                rospy.logwarn(f"[Laser] ถึง max_dist {max_dist} ม. แล้ว — หยุด")
+                break
+
+            twist = Twist()
+            twist.linear.x = 0.08  # เดินช้าๆ
+            self.pub.publish(twist)
+            rate.sleep()
+
+        self.pub.publish(Twist())
+        rospy.sleep(0.3)
+
+    # --------------------------------------------------
+
     def odom_callback(self, msg):
         self.raw_x = msg.pose.pose.position.x
         self.raw_y = msg.pose.pose.position.y
@@ -202,9 +253,6 @@ class OdomRobot:
             if self.amcl_covariance < 0.05:
                 self.amcl_ready = True
 
-    # --------------------------------------------------
-    # AMCL HELPERS
-    # --------------------------------------------------
     def _wait_for_amcl(self, timeout=10.0):
         rospy.loginfo("Waiting for /amcl_pose (%.0fs)..." % timeout)
         try:
@@ -213,23 +261,24 @@ class OdomRobot:
         except rospy.ROSException:
             rospy.logwarn("[AMCL] Not received. Odometry only.")
 
-    def set_initial_pose(self, x, y, yaw_deg):
+    def set_initial_pose(self, x, y, yaw_rad):
         pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped,
                               queue_size=1, latch=True)
         rospy.sleep(0.5)
         msg = PoseWithCovarianceStamped()
         msg.header.frame_id = "map"
         msg.header.stamp    = rospy.Time.now()
-        yr = math.radians(yaw_deg)
         msg.pose.pose.position.x    = x
         msg.pose.pose.position.y    = y
-        msg.pose.pose.orientation.z = math.sin(yr / 2.0)
-        msg.pose.pose.orientation.w = math.cos(yr / 2.0)
+        msg.pose.pose.orientation.z = math.sin(yaw_rad / 2.0)
+        msg.pose.pose.orientation.w = math.cos(yaw_rad / 2.0)
         cov = [0.0] * 36
-        cov[0] = 0.25; cov[7] = 0.25; cov[35] = 0.068
+        cov[0]  = 0.25
+        cov[7]  = 0.25
+        cov[35] = 0.068
         msg.pose.covariance = cov
         pub.publish(msg)
-        rospy.loginfo(f"[AMCL] Pose set x={x:.2f} y={y:.2f} yaw={yaw_deg}°")
+        rospy.loginfo(f"[AMCL] Pose → x={x:.2f} y={y:.2f} yaw={math.degrees(yaw_rad):.1f}°")
 
     def get_best_pose(self):
         with self.amcl_lock:
@@ -237,9 +286,6 @@ class OdomRobot:
                 return self.amcl_x, self.amcl_y, self.amcl_yaw, "amcl"
         return self.x, self.y, self.yaw, "odom"
 
-    # --------------------------------------------------
-    # RESET / HOME
-    # --------------------------------------------------
     def reset_home(self):
         self.offset_x   = self.raw_x
         self.offset_y   = self.raw_y
@@ -249,47 +295,56 @@ class OdomRobot:
 
     def execute_home_sequence(self):
         global is_navigating, current_location
-        rospy.loginfo("--- Home Sequence Start ---")
+        rospy.loginfo("--- Starting Home Sequence ---")
         is_navigating = True
         self.reset_home()
         self.move_forward(2.5)
         self.rotate(math.radians(-90))
         self.move_forward(0.5)
-        self.rotate(math.radians(180))
+        self.rotate(math.radians(90))
         self.reset_home()
-        current_location = 1
+        self.move_until_clear(target_dist=0.5)  # ← เพิ่ม
+
+        node5 = NODE_POSES[5]
+        rospy.loginfo("--- Setting AMCL pose → Node 5 ---")
+        self.set_initial_pose(node5["x"], node5["y"], node5["yaw_rad"])
+        rospy.sleep(1.0)
+
+        current_location = 5
         is_navigating = False
+        rospy.loginfo("--- Home Sequence Complete: at Node 5 ---")
 
-        # ตั้ง AMCL = Node 1 ทันทีหลัง Home Sequence เสร็จ
-        n1 = NODE_POSES[1]
-        self.set_initial_pose(n1["x"], n1["y"], n1["yaw"])
-        rospy.loginfo(f"[AMCL] Pose reset to Node 1: x={n1['x']} y={n1['y']} yaw={n1['yaw']}°")
-        rospy.loginfo("--- Home Sequence Done: Node=1 ---")
-
-    # --------------------------------------------------
-    # MOTION PRIMITIVES  (Home Sequence เท่านั้น)
-    # --------------------------------------------------
     def move_forward(self, distance, bias=0.0):
         start_x, start_y = self.x, self.y
-        target_yaw = self.yaw
-        rate = rospy.Rate(20)
-        LINEAR_SPEED = 0.10
-        cur_spd = 0.05
-        self.pid_straight.integral = self.pid_straight.last_error = 0.0
+        target_yaw       = self.yaw
+        rate             = rospy.Rate(20)
+        LINEAR_SPEED     = 0.10
+        current_speed    = 0.05
+        accel            = 0.008
+        min_speed        = 0.07
+        decel_dist       = 0.4
+        kp, ki, kd       = 1.8, 0.005, 0.1
+        integral         = 0.0
+        last_error       = 0.0
 
         while not rospy.is_shutdown() and is_navigating:
-            traveled = math.sqrt((self.x - start_x)**2 + (self.y - start_y)**2)
-            rem = distance - traveled
+            traveled       = math.sqrt((self.x - start_x)**2 + (self.y - start_y)**2)
+            remaining_dist = distance - traveled
             if traveled >= distance:
                 break
-            cur_spd = min(cur_spd + 0.008, LINEAR_SPEED) if rem > 0.4 \
-                      else max(0.07, (rem / 0.4) * LINEAR_SPEED)
-            err_yaw = math.atan2(math.sin(target_yaw - self.yaw),
-                                 math.cos(target_yaw - self.yaw))
-            t = Twist()
-            t.linear.x  = cur_spd
-            t.angular.z = self.pid_straight.compute(err_yaw, 0.05) + bias
-            self.pub.publish(t)
+            if remaining_dist > decel_dist:
+                current_speed = min(current_speed + accel, LINEAR_SPEED)
+            else:
+                current_speed = max(min_speed, (remaining_dist / decel_dist) * LINEAR_SPEED)
+            error_yaw  = math.atan2(math.sin(target_yaw - self.yaw),
+                                    math.cos(target_yaw - self.yaw))
+            integral  += error_yaw * 0.05
+            output     = kp * error_yaw + ki * integral + kd * (error_yaw - last_error) / 0.05
+            last_error = error_yaw
+            twist = Twist()
+            twist.linear.x  = current_speed
+            twist.angular.z = max(-0.4, min(0.4, output)) + bias
+            self.pub.publish(twist)
             rate.sleep()
 
         self.pub.publish(Twist())
@@ -298,75 +353,38 @@ class OdomRobot:
     def rotate(self, angle_rad):
         target_yaw = math.atan2(math.sin(self.yaw + angle_rad),
                                 math.cos(self.yaw + angle_rad))
-        rate = rospy.Rate(30)
-        self.pid_rotate.integral = 0
+        rate       = rospy.Rate(30)
+        kp, ki, kd = 1.0, 0.01, 0.1
+        integral   = 0.0
+        last_error = 0.0
 
         while not rospy.is_shutdown() and is_navigating:
-            err = math.atan2(math.sin(target_yaw - self.yaw),
-                             math.cos(target_yaw - self.yaw))
-            if abs(err) < 0.005:
+            error     = math.atan2(math.sin(target_yaw - self.yaw),
+                                   math.cos(target_yaw - self.yaw))
+            if abs(error) < 0.005:
                 break
-            t = Twist()
-            t.angular.z = self.pid_rotate.compute(err, 1.0 / 30.0)
-            self.pub.publish(t)
+            integral  += error / 30.0
+            output     = kp * error + ki * integral + kd * (error - last_error) * 30.0
+            last_error = error
+            twist = Twist()
+            twist.angular.z = max(-0.3, min(0.3, output))
+            self.pub.publish(twist)
             rate.sleep()
 
         self.pub.publish(Twist())
         rospy.sleep(0.3)
 
-    # --------------------------------------------------
-    # RECOVERY — เมื่อ move_base ส่ง ABORTED
-    # ถอยหลัง แล้วหมุนหาด้านที่โล่งกว่า
-    # --------------------------------------------------
-    def _recovery_wiggle(self):
-        rospy.logwarn("[Recovery] Starting wiggle recovery...")
-        rate = rospy.Rate(10)
-
-        f, l, r = self.obstacle.get_distances()
-        rospy.loginfo(f"[Recovery] front={f:.2f}m left={l:.2f}m right={r:.2f}m")
-
-        # ขั้น 1: ถอยหลัง 0.3 เมตร (~2 วินาที)
-        rospy.loginfo("[Recovery] Step 1: Back up")
-        t = Twist()
-        t.linear.x = -0.10
-        for _ in range(20):
-            if not is_navigating:
-                return
-            self.pub.publish(t)
-            rate.sleep()
-        self.pub.publish(Twist())
-        rospy.sleep(0.5)
-
-        # ขั้น 2: หมุนไปด้านที่โล่งกว่า (~1 วินาที ≈ 23°)
-        _, l, r = self.obstacle.get_distances()
-        turn_dir = 1.0 if l > r else -1.0
-        rospy.loginfo(f"[Recovery] Step 2: Rotate {'left' if turn_dir > 0 else 'right'}")
-        t = Twist()
-        t.angular.z = turn_dir * 0.4
-        for _ in range(25):
-            if not is_navigating:
-                return
-            self.pub.publish(t)
-            rate.sleep()
-        self.pub.publish(Twist())
-        rospy.sleep(0.5)
-
-        rospy.loginfo("[Recovery] Done — move_base will replan")
-
-    # --------------------------------------------------
-    # move_base NAVIGATION + obstacle retry loop
-    # --------------------------------------------------
     def _build_goal(self, node_id):
         if node_id not in NODE_POSES:
             rospy.logerr(f"Node {node_id} not in NODE_POSES")
             return None
-        p = NODE_POSES[node_id]
+        p    = NODE_POSES[node_id]
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = "map"
         goal.target_pose.header.stamp    = rospy.Time.now()
         goal.target_pose.pose.position.x = p["x"]
         goal.target_pose.pose.position.y = p["y"]
-        yr = math.radians(p["yaw"])
+        yr = p["yaw_rad"]
         goal.target_pose.pose.orientation.z = math.sin(yr / 2.0)
         goal.target_pose.pose.orientation.w = math.cos(yr / 2.0)
         return goal
@@ -382,72 +400,117 @@ class OdomRobot:
         ty = NODE_POSES[target_node]["y"]
         rospy.loginfo(f"[Nav] → Node {target_node} ({tx:.2f}, {ty:.2f})")
 
-        MAX_RETRIES = 3
-        retry = 0
+        self.move_base_client.send_goal(goal)
+        current_progress = 0
+        self.movement_logger.reset()
 
-        while retry <= MAX_RETRIES and is_navigating:
+        rate = rospy.Rate(2)
 
-            # ส่ง goal (ครั้งแรก หรือหลัง recovery)
-            goal.target_pose.header.stamp = rospy.Time.now()
-            self.move_base_client.send_goal(goal)
-            current_progress = 0
-            rate = rospy.Rate(2)
+        while not rospy.is_shutdown():
+            if not is_navigating:
+                self.move_base_client.cancel_goal()
+                rospy.loginfo("[Nav] Goal cancelled.")
+                return False
 
-            while not rospy.is_shutdown() and is_navigating:
+            state = self.move_base_client.get_state()
 
-                # แจ้งเตือน log เมื่อหน้าชนสิ่งกีดขวาง
-                if self.obstacle.is_front_blocked():
-                    rospy.logwarn(
-                        f"[Obstacle] DANGER front={self.obstacle.front_dist:.2f}m "
-                        f"— move_base replanning...")
+            if state == GoalStatus.SUCCEEDED:
+                current_progress = 100
+                rospy.loginfo(f"[Nav] ✓ Reached Node {target_node}!")
+                return True
 
-                state = self.move_base_client.get_state()
+            elif state in (GoalStatus.ABORTED, GoalStatus.REJECTED,
+                           GoalStatus.PREEMPTED, GoalStatus.LOST):
+                rospy.logwarn(f"[Nav] Failed. State={state}")
+                return False
 
-                if state == GoalStatus.SUCCEEDED:
-                    current_progress = 100
-                    rospy.loginfo(f"[Nav] ✓ Reached Node {target_node}!")
-                    return True
+            bx, by, byaw, pose_src = self.get_best_pose()
+            self.movement_logger.update(bx, by, byaw)
 
-                elif state == GoalStatus.ABORTED:
-                    retry += 1
-                    rospy.logwarn(f"[Nav] ABORTED (retry {retry}/{MAX_RETRIES})")
-                    if retry <= MAX_RETRIES:
-                        self._recovery_wiggle()
-                    break  # resend goal
+            dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
+            src      = NODE_POSES.get(current_location, {"x": bx, "y": by})
+            dist_tot = math.sqrt((tx - src["x"])**2 + (ty - src["y"])**2)
+            if dist_tot > 0.01:
+                current_progress = max(0, min(99, (1 - dist_rem / dist_tot) * 100))
 
-                elif state in (GoalStatus.REJECTED, GoalStatus.PREEMPTED,
-                               GoalStatus.LOST):
-                    rospy.logwarn(f"[Nav] Failed state={state}")
-                    return False
+            rospy.loginfo(
+                f"[Nav] progress={current_progress:.1f}%  "
+                f"dist={dist_rem:.2f}m  pos=({bx:.2f},{by:.2f})  src={pose_src}"
+            )
+            rate.sleep()
 
-                # คำนวณ progress จากระยะเหลือ
-                bx, by, _, _ = self.get_best_pose()
-                dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
-                src = NODE_POSES.get(current_location, {"x": bx, "y": by})
-                dist_tot = math.sqrt((tx - src["x"])**2 + (ty - src["y"])**2)
-                if dist_tot > 0.01:
-                    current_progress = max(0, min(99,
-                        (1 - dist_rem / dist_tot) * 100))
-
-                rospy.loginfo(
-                    f"[Nav] progress={current_progress:.1f}% "
-                    f"dist={dist_rem:.2f}m "
-                    f"| obstacle front={self.obstacle.front_dist:.2f}m "
-                    f"left={self.obstacle.left_dist:.2f}m "
-                    f"right={self.obstacle.right_dist:.2f}m")
-                rate.sleep()
-
-        rospy.logwarn(f"[Nav] Gave up after {MAX_RETRIES} retries.")
         return False
 
     def execute_path(self, start, target):
-        return self.navigate_to_node(target)
+        global current_location
+
+        if target == 5 or (current_location == 5 and target < 1):
+            rospy.loginfo(f"[Path] DIRECT nav {current_location} → {target}")
+            success = self.navigate_to_node(target)
+            if success:
+                current_location = target
+            return success
+
+        going_forward = target > current_location
+
+        if not going_forward:
+            rospy.loginfo(f"[Path] BACKWARD {current_location} → {target} | direct nav")
+            success = self.navigate_to_node(target)
+            if success:
+                current_location = target
+            return success
+
+        if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
+            full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
+            slice_start = 1
+        else:
+            full_seq = NODE_FULL_SEQUENCES.get(target, [target])
+            try:
+                slice_start = full_seq.index(current_location) + 1
+            except ValueError:
+                slice_start = 0
+
+        waypoints   = full_seq[slice_start:]
+        total_steps = len(waypoints)
+
+        if not waypoints:
+            rospy.loginfo(f"[Path] Already at or past Node {target}")
+            return True
+
+        rospy.loginfo(
+            f"[Path] FORWARD {current_location} → {target} | "
+            f"remaining waypoints: {waypoints}"
+        )
+
+        for step_idx, waypoint in enumerate(waypoints, start=1):
+            rospy.loginfo(f"[Path] Step {step_idx}/{total_steps} — nav to Node {waypoint}")
+            success = self.navigate_to_node(waypoint)
+            if not success:
+                rospy.logwarn(f"[Path] Failed at Node {waypoint}. Aborting.")
+                return False
+            current_location = waypoint
+            rospy.loginfo(f"[Path] ✓ Node {waypoint} reached.")
+
+            if waypoint == 6:
+                rospy.loginfo("[Path] Node 6 reached — Executing maneuver: Turn left 90° and Forward 1m")
+                self.reset_home()
+                self.rotate(math.radians(90))
+                rospy.sleep(0.2)
+                self.move_forward(1.0)
+                rospy.sleep(0.2)
+                rospy.loginfo("[Path] Maneuver finished — Resuming remaining track sequence")
+
+            if step_idx < total_steps:
+                rospy.sleep(0.5)
+
+        rospy.loginfo(f"[Path] ✓ Full path to Node {target} complete!")
+        return True
 
 
 # ==================================================
 # FLASK API SERVER
 # ==================================================
-app = Flask(__name__)
+app      = Flask(__name__)
 my_robot = None
 
 
@@ -464,6 +527,24 @@ def handle_command():
         return jsonify({"status": "error",
                         "message": f"Node {target} not in NODE_POSES"}), 400
 
+    if target == 5 or current_location == 5:
+        if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
+            full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
+            planned_sequence = full_seq[1:]
+        else:
+            planned_sequence = [target]
+    else:
+        going_forward = target > current_location
+        if not going_forward:
+            planned_sequence = [target]
+        else:
+            full_seq = NODE_FULL_SEQUENCES.get(target, [target])
+            try:
+                slice_start = full_seq.index(current_location) + 1
+            except ValueError:
+                slice_start = 0
+            planned_sequence = full_seq[slice_start:] or [target]
+
     def run_and_finish(s, t):
         global is_navigating, current_location, current_progress
         current_progress = 0
@@ -474,41 +555,43 @@ def handle_command():
             current_location = t
 
     threading.Thread(target=run_and_finish, args=(start, target)).start()
-    return jsonify({"status": "starting",
-                    "target_node": target,
-                    "target_pose": NODE_POSES[target]}), 200
+    return jsonify({
+        "status":           "starting",
+        "target_node":      target,
+        "target_pose":      NODE_POSES[target],
+        "planned_sequence": planned_sequence,
+    }), 200
 
 
 @app.route('/status', methods=['GET'])
 def get_status():
     bx, by, byaw, src = my_robot.get_best_pose()
     return jsonify({
-        "is_navigating":    is_navigating,
-        "current_location": current_location,
-        "current_progress": round(current_progress, 1),
-        "odom_position":    {"x": round(my_robot.x, 3), "y": round(my_robot.y, 3)},
-        "odom_yaw_deg":     round(math.degrees(my_robot.yaw), 2),
-        "amcl_position":    {"x": round(my_robot.amcl_x, 3), "y": round(my_robot.amcl_y, 3)},
-        "amcl_yaw_deg":     round(math.degrees(my_robot.amcl_yaw), 2),
-        "amcl_covariance":  round(my_robot.amcl_covariance, 4),
-        "amcl_ready":       my_robot.amcl_ready,
-        "best_position":    {"x": round(bx, 3), "y": round(by, 3)},
-        "best_yaw_deg":     round(math.degrees(byaw), 2),
-        "pose_source":      src,
-        "obstacle":         my_robot.obstacle.get_status(),
+        "is_navigating":     is_navigating,
+        "current_location":  current_location,
+        "current_progress":  round(current_progress, 1),
+        "odom_position":     {"x": round(my_robot.x, 3), "y": round(my_robot.y, 3)},
+        "odom_yaw_deg":      round(math.degrees(my_robot.yaw), 2),
+        "amcl_position":     {"x": round(my_robot.amcl_x, 3), "y": round(my_robot.amcl_y, 3)},
+        "amcl_yaw_deg":      round(math.degrees(my_robot.amcl_yaw), 2),
+        "amcl_covariance":   round(my_robot.amcl_covariance, 4),
+        "amcl_ready":        my_robot.amcl_ready,
+        "best_position":     {"x": round(bx, 3), "y": round(by, 3)},
+        "best_yaw_deg":      round(math.degrees(byaw), 2),
+        "pose_source":       src,
+        "current_direction": my_robot.movement_logger.last_logged_direction,
+        "laser_front_m":     round(my_robot.laser_front, 3),
+        "laser_back_m":      round(my_robot.laser_back,  3),
+        "laser_left_m":      round(my_robot.laser_left,  3),
+        "laser_right_m":     round(my_robot.laser_right, 3),
     })
-
-
-@app.route('/obstacle', methods=['GET'])
-def get_obstacle():
-    """ดูระยะสิ่งกีดขวาง real-time"""
-    return jsonify(my_robot.obstacle.get_status())
 
 
 @app.route('/stop', methods=['POST', 'GET'])
 def stop_robot():
     global is_navigating
     is_navigating = False
+    my_robot.move_base_client.cancel_all_goals()
     velocity_publisher.publish(Twist())
     return jsonify({"status": "success", "message": "Stopped"}), 200
 
@@ -516,21 +599,26 @@ def stop_robot():
 @app.route('/command/reset-home', methods=['POST'])
 def handle_reset_home():
     global is_navigating
-    is_navigating = False
+    if is_navigating:
+        return jsonify({"status": "error", "message": "Robot is busy"}), 400
+    my_robot.move_base_client.cancel_all_goals()
     threading.Thread(target=my_robot.execute_home_sequence).start()
-    return jsonify({"status": "success",
-                    "message": "Home sequence started, node → 1"}), 200
+    return jsonify({
+        "status":  "starting",
+        "message": "Executing home sequence → Node 5",
+    }), 200
 
 
 @app.route('/amcl/set-pose', methods=['POST'])
 def handle_set_pose():
-    data = request.json or {}
-    x   = float(data.get("x",   0.0))
-    y   = float(data.get("y",   0.0))
-    yaw = float(data.get("yaw", 0.0))
-    threading.Thread(target=my_robot.set_initial_pose, args=(x, y, yaw)).start()
+    data    = request.json or {}
+    x       = float(data.get("x",       0.0))
+    y       = float(data.get("y",       0.0))
+    yaw_deg = float(data.get("yaw_deg", 0.0))
+    yaw_rad = math.radians(yaw_deg)
+    threading.Thread(target=my_robot.set_initial_pose, args=(x, y, yaw_rad)).start()
     return jsonify({"status": "success",
-                    "message": f"Pose → x={x} y={y} yaw={yaw}°"}), 200
+                    "message": f"Pose → x={x} y={y} yaw={yaw_deg}°"}), 200
 
 
 @app.route('/amcl/status', methods=['GET'])
@@ -538,8 +626,7 @@ def handle_amcl_status():
     return jsonify({
         "amcl_ready":      my_robot.amcl_ready,
         "amcl_covariance": round(my_robot.amcl_covariance, 4),
-        "amcl_position":   {"x": round(my_robot.amcl_x, 3),
-                            "y": round(my_robot.amcl_y, 3)},
+        "amcl_position":   {"x": round(my_robot.amcl_x, 3), "y": round(my_robot.amcl_y, 3)},
         "amcl_yaw_deg":    round(math.degrees(my_robot.amcl_yaw), 2),
         "note":            "covariance < 0.05 = confident"
     })
@@ -547,16 +634,18 @@ def handle_amcl_status():
 
 @app.route('/nodes', methods=['GET'])
 def get_nodes():
-    return jsonify({"nodes": NODE_POSES})
+    out = {k: {**v, "yaw_deg": round(math.degrees(v["yaw_rad"]), 2)}
+           for k, v in NODE_POSES.items()}
+    return jsonify({"nodes": out})
 
 
 @app.route('/nodes/<int:node_id>', methods=['POST'])
 def update_node(node_id):
     data = request.json or {}
     NODE_POSES[node_id] = {
-        "x":   float(data.get("x",   0.0)),
-        "y":   float(data.get("y",   0.0)),
-        "yaw": float(data.get("yaw", 0.0)),
+        "x":       float(data.get("x",       0.0)),
+        "y":       float(data.get("y",       0.0)),
+        "yaw_rad": math.radians(float(data.get("yaw_deg", 0.0))),
     }
     return jsonify({"status": "updated", "node": node_id,
                     "pose": NODE_POSES[node_id]}), 200
@@ -569,18 +658,18 @@ if __name__ == "__main__":
     velocity_publisher = rospy.Publisher(
         '/mobile_base/commands/velocity', Twist, queue_size=10)
 
-    my_robot = OdomRobot()
-    current_location = 1
+    my_robot = OdomRobot(pub=velocity_publisher)
+
+    current_location = 5
     is_navigating    = False
 
     print("--- Robot Server Ready on Port 5000 ---")
     print("  POST /command              {start, target}")
-    print("  GET  /status               (includes obstacle field)")
-    print("  GET  /obstacle             real-time obstacle distances")
+    print("  GET  /status")
     print("  POST /stop")
     print("  POST /command/reset-home")
-    print("  POST /amcl/set-pose        {x, y, yaw}")
+    print("  POST /amcl/set-pose        {x, y, yaw_deg}")
     print("  GET  /amcl/status")
     print("  GET  /nodes")
-    print("  POST /nodes/<id>           {x, y, yaw}")
+    print("  POST /nodes/<id>           {x, y, yaw_deg}")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
