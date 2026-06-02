@@ -25,10 +25,9 @@ velocity_publisher = None
 # ==================================================
 NODE_POSES = {
     1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.0},
-    2: {"x": 12.455, "y":  13.314, "yaw_rad":  0.002},
-    3: {"x": 16.521, "y":  22.191, "yaw_rad":  0.002},
+    2: {"x":  9.115, "y":  14.794, "yaw_rad":  0.002},  # Updated
+    3: {"x":  9.803, "y":  22.450, "yaw_rad":  0.002},  # Updated
     5: {"x":  4.009, "y":  -0.575, "yaw_rad":  0.0},
-    6: {"x": 10.519, "y":   2.010, "yaw_rad":  1.920},  # ~110° — faces slightly left to compensate map offset
 }
 
 # ==================================================
@@ -36,14 +35,12 @@ NODE_POSES = {
 # ==================================================
 NODE_FULL_SEQUENCES = {
     1: [1],
-    2: [1, 6, 2],       # Node 6 guides robot through corridor entry
-    3: [1, 6, 2, 3],
-    5: [5],             # Node 5 to itself
-    6: [1, 6],
-    # From Node 5, forward paths go through Node 6 as an intermediate waypoint
-    "5->6": [5, 6],     # <<-- เพิ่มคีย์นี้เพื่อให้เดินทางจาก 5 ไป 6 ได้โดยตรงอย่างถูกต้อง
-    "5->2": [5, 6, 2],
-    "5->3": [5, 6, 2, 3],
+    2: [1, 2],       # Removed Node 6
+    3: [1, 2, 3],    # Removed Node 6
+    5: [5],
+    # From Node 5, forward paths go directly to targets now
+    "5->2": [5, 2],
+    "5->3": [5, 2, 3],
 }
 
 
@@ -444,10 +441,6 @@ class OdomRobot:
             current_location = waypoint
             rospy.loginfo(f"[Path] ✓ Node {waypoint} reached.")
             
-            # เมื่อผ่านจุด Node 6 (ทางผ่าน) จะสั่งให้หุ่นเยื้องชิดกำแพงซ้ายทันที
-            if waypoint == 6:
-                rospy.loginfo("[Path] Node 6 reached — executing left nudge")
-                self.nudge_left(distance=0.20)
             if step_idx < total_steps:
                 rospy.sleep(0.5)
 
