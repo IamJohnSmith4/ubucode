@@ -25,9 +25,10 @@ velocity_publisher = None
 # ==================================================
 NODE_POSES = {
     1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.0},
-    2: {"x":  9.115, "y":  14.794, "yaw_rad":  0.002},  # Updated
-    3: {"x":  9.803, "y":  22.450, "yaw_rad":  0.002},  # Updated
+    2: {"x":  9.115, "y":  14.794, "yaw_rad":  0.002},
+    3: {"x":  9.803, "y":  22.450, "yaw_rad":  0.002},
     5: {"x":  4.009, "y":  -0.575, "yaw_rad":  0.0},
+    6: {"x": 11.242, "y":   5.049, "yaw_rad":  0.0},  # Re-added with new coordinates
 }
 
 # ==================================================
@@ -35,12 +36,14 @@ NODE_POSES = {
 # ==================================================
 NODE_FULL_SEQUENCES = {
     1: [1],
-    2: [1, 2],       # Removed Node 6
-    3: [1, 2, 3],    # Removed Node 6
+    2: [1, 6, 2],       
+    3: [1, 6, 2, 3],    
     5: [5],
-    # From Node 5, forward paths go directly to targets now
-    "5->2": [5, 2],
-    "5->3": [5, 2, 3],
+    6: [1, 6],
+    # Custom sequence paths requested starting from Node 5
+    "5->6": [5, 6],
+    "5->2": [5, 6, 2],  # Route: 5 -> 6 -> 2
+    "5->3": [5, 6, 3],  # Route: 5 -> 6 -> 3
 }
 
 
@@ -159,7 +162,7 @@ class OdomRobot:
         node5 = NODE_POSES[5]
         rospy.loginfo("=== Setting AMCL initial pose → Node 5 ===")
         self.set_initial_pose(node5["x"], node5["y"], node5["yaw_rad"])
-        rospy.sleep(1.0)   # give AMCL time to receive the pose
+        rospy.sleep(1.0)
 
         global current_location
         current_location = 5
@@ -190,7 +193,7 @@ class OdomRobot:
             if self.amcl_covariance < 0.05:
                 self.amcl_ready = True
 
-    def _wait_for_amcl(self, timeout=10.0):
+    def _wait_for_amcl(timeout=10.0):
         rospy.loginfo("Waiting for /amcl_pose (%.0fs)..." % timeout)
         try:
             rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped, timeout=timeout)
@@ -310,19 +313,6 @@ class OdomRobot:
         self.pub.publish(Twist())
         rospy.sleep(0.3)
 
-    def nudge_left(self, distance=0.20):
-        rospy.loginfo(f"[Nudge] Shifting left {distance*100:.0f}cm")
-        original_yaw = self.yaw
-        self.rotate(math.radians(90))
-        rospy.sleep(0.2)
-        self.move_forward(distance)
-        rospy.sleep(0.2)
-        error = math.atan2(math.sin(original_yaw - self.yaw),
-                           math.cos(original_yaw - self.yaw))
-        self.rotate(error)
-        rospy.sleep(0.2)
-        rospy.loginfo("[Nudge] Done — resuming navigation")
-
     def _build_goal(self, node_id):
         if node_id not in NODE_POSES:
             rospy.logerr(f"Node {node_id} not in NODE_POSES")
@@ -409,7 +399,6 @@ class OdomRobot:
                 current_location = target
             return success
 
-        # Use special key for paths starting from Node 5
         if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
             full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
             slice_start = 1  # skip Node 5 itself
@@ -441,6 +430,16 @@ class OdomRobot:
             current_location = waypoint
             rospy.loginfo(f"[Path] ✓ Node {waypoint} reached.")
             
+            # Action logic: Turn left 90 deg and move forward 1 meter when reaching Node 6
+            if waypoint == 6:
+                rospy.loginfo("[Path] Node 6 reached — Executing maneuver: Turn left 90° and Forward 1m")
+                self.reset_home()          # Snap temporary odometry reference frames
+                self.rotate(math.radians(-90))  # Rotate 90 degrees left
+                rospy.sleep(0.2)
+                self.move_forward(1.0)     # Drive forward exactly 1.0 meter
+                rospy.sleep(0.2)
+                rospy.loginfo("[Path] Maneuver finished — Resuming remaining track sequence")
+
             if step_idx < total_steps:
                 rospy.sleep(0.5)
 
@@ -468,7 +467,6 @@ def handle_command():
         return jsonify({"status": "error",
                         "message": f"Node {target} not in NODE_POSES"}), 400
 
-    # Build the planned sequence using the same corrected slice-aware logic
     if target == 5 or current_location == 5:
         if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
             full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
