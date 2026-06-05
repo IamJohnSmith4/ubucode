@@ -30,20 +30,22 @@ NODE_POSES = {
     3: {"x":  9.803, "y":  22.450, "yaw_rad":  0.0},
     5: {"x":  4.009, "y":  -0.575, "yaw_rad":  0.0},
     6: {"x": 11.242, "y":   5.049, "yaw_rad":  0.0}, 
+    7: {"x": 10.030, "y":  19.084, "yaw_rad":  0.0}, # Added Node 7
 }
 
 # ==================================================
-# NODE PATH SEQUENCES
+# ==================================================
+# NODE PATH SEQUENCES (UPDATED)
 # ==================================================
 NODE_FULL_SEQUENCES = {
     1: [1],
     2: [1, 6, 2],       
-    3: [1, 6, 2, 3],    
+    3: [1, 6, 3],          # Changed from [1, 6, 2, 3] -> Now goes straight from 6 to 3
     5: [5],
     6: [1, 6],
     "5->6": [5, 6],
     "5->2": [5, 6, 2],  
-    "5->3": [5, 6, 2, 3], 
+    "5->3": [5, 6, 3],     # Changed from [5, 6, 2, 3] -> Now goes straight from 6 to 3
 }
 
 
@@ -408,7 +410,11 @@ class OdomRobot:
     def execute_path(self, start, target):
         global current_location
 
-        if target == 5 or (current_location == 5 and target < 1):
+        # Injection check: Overwrite path directly if the run pattern is precisely 2 -> 3
+        if current_location == 2 and target == 3:
+            waypoints = [7, 3]
+            rospy.loginfo(f"[Path] Specialized Node 2 → Node 3 Route Activated. Interjecting Waypoint 7.")
+        elif target == 5 or (current_location == 5 and target < 1):
             rospy.loginfo(f"[Path] DIRECT nav {current_location} → {target}")
             success = self.navigate_to_node(target)
             if success:
@@ -453,6 +459,7 @@ class OdomRobot:
             rospy.loginfo(f"[Path] Step {step_idx}/{total_steps} — nav to Node {waypoint}")
             success = self.navigate_to_node(waypoint)
             if not success:
+                 Hobrupted = True
                 rospy.logwarn(f"[Path] Failed at Node {waypoint}. Aborting.")
                 return False
             with state_lock:
@@ -496,7 +503,10 @@ def handle_command():
     if target not in NODE_POSES:
         return jsonify({"status": "error", "message": f"Node {target} not in NODE_POSES"}), 400
 
-    if target == 5 or current_location == 5:
+    # UI tracking forecast: Update sequence lookup if transitioning from 2 -> 3
+    if current_location == 2 and target == 3:
+        planned_sequence = [7, 3]
+    elif target == 5 or current_location == 5:
         if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
             full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
             planned_sequence = full_seq[1:]
