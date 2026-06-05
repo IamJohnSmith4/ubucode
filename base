@@ -29,8 +29,7 @@ NODE_POSES = {
     2: {"x":  9.115, "y":  14.794, "yaw_rad":  0.002},
     3: {"x":  9.803, "y":  22.450, "yaw_rad":  0.002},
     5: {"x":  4.009, "y":  -0.575, "yaw_rad":  0.0},
-    6: {"x": 11.242, "y":   5.049, "yaw_rad":  0.0}, 
-    7: {"x": 10.741, "y":  15.179, "yaw_rad":  0.002}, # Added Node 7
+    6: {"x": 11.242, "y":   5.049, "yaw_rad":  0.0},
 }
 
 # ==================================================
@@ -38,15 +37,13 @@ NODE_POSES = {
 # ==================================================
 NODE_FULL_SEQUENCES = {
     1: [1],
-    2: [1, 6, 2],       
-    3: [1, 6, 2, 7, 3], # Updated to pass through Node 7    
+    2: [1, 6, 2],
+    3: [1, 6, 2, 3],
     5: [5],
     6: [1, 6],
-    7: [1, 6, 2, 7],
     "5->6": [5, 6],
-    "5->2": [5, 6, 2],  
-    "5->7": [5, 6, 2, 7],
-    "5->3": [5, 6, 2, 7, 3], # Updated to route via 7
+    "5->2": [5, 6, 2],
+    "5->3": [5, 6, 2, 3],
 }
 
 
@@ -411,43 +408,35 @@ class OdomRobot:
     def execute_path(self, start, target):
         global current_location
 
-        # Specific route request handling
-        if current_location == 2 and target == 3:
-            waypoints = [7, 3]
-            rospy.loginfo(f"[Path] Special Route Active: 2 → 7 → 3")
-        elif current_location == 3 and target == 2:
-            waypoints = [7, 2]
-            rospy.loginfo(f"[Path] Special Route Active: 3 → 7 → 2")
-        elif target == 5 or (current_location == 5 and target < 1):
+        if target == 5 or (current_location == 5 and target < 1):
             rospy.loginfo(f"[Path] DIRECT nav {current_location} → {target}")
             success = self.navigate_to_node(target)
             if success:
                 with state_lock:
                     current_location = target
             return success
+
+        going_forward = target > current_location
+
+        if not going_forward:
+            rospy.loginfo(f"[Path] BACKWARD {current_location} → {target} | direct nav")
+            success = self.navigate_to_node(target)
+            if success:
+                with state_lock:
+                    current_location = target
+            return success
+
+        if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
+            full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
+            slice_start = 1
         else:
-            going_forward = target > current_location
+            full_seq = NODE_FULL_SEQUENCES.get(target, [target])
+            try:
+                slice_start = full_seq.index(current_location) + 1
+            except ValueError:
+                slice_start = 0
 
-            if not going_forward:
-                rospy.loginfo(f"[Path] BACKWARD {current_location} → {target} | direct nav")
-                success = self.navigate_to_node(target)
-                if success:
-                    with state_lock:
-                        current_location = target
-                return success
-
-            if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
-                full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
-                slice_start = 1  
-            else:
-                full_seq = NODE_FULL_SEQUENCES.get(target, [target])
-                try:
-                    slice_start = full_seq.index(current_location) + 1
-                except ValueError:
-                    slice_start = 0
-
-            waypoints = full_seq[slice_start:]
-
+        waypoints = full_seq[slice_start:]
         total_steps = len(waypoints)
 
         if not waypoints:
@@ -468,13 +457,13 @@ class OdomRobot:
             with state_lock:
                 current_location = waypoint
             rospy.loginfo(f"[Path] ✓ Node {waypoint} reached.")
-            
+
             if waypoint == 6:
                 rospy.loginfo("[Path] Node 6 reached — Executing maneuver: Turn left 90° and Forward 1m")
-                self.reset_home()          
-                self.rotate(math.radians(-90))  
+                self.reset_home()
+                self.rotate(math.radians(-90))
                 rospy.sleep(0.2)
-                self.move_forward(1.0)     
+                self.move_forward(1.0)
                 rospy.sleep(0.2)
                 rospy.loginfo("[Path] Maneuver finished — Resuming remaining track sequence")
 
@@ -506,12 +495,7 @@ def handle_command():
     if target not in NODE_POSES:
         return jsonify({"status": "error", "message": f"Node {target} not in NODE_POSES"}), 400
 
-    # Handle sequence visualization response for Flask endpoint
-    if current_location == 2 and target == 3:
-        planned_sequence = [7, 3]
-    elif current_location == 3 and target == 2:
-        planned_sequence = [7, 2]
-    elif target == 5 or current_location == 5:
+    if target == 5 or current_location == 5:
         if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
             full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
             planned_sequence = full_seq[1:]
@@ -592,6 +576,40 @@ def handle_reset_home():
     return jsonify({
         "status":  "starting",
         "message": "Executing home sequence → Node 5",
+    }), 200
+
+
+@app.route('/command/return-to-base', methods=['POST'])
+def handle_return_to_base():
+    global is_navigating, current_location
+    with state_lock:
+        if is_navigating:
+            return jsonify({"status": "error", "message": "Robot is busy"}), 400
+        if current_location == 1:
+            return jsonify({"status": "success", "message": "Already at Node 1"}), 200
+
+    from_node = current_location
+
+    def run_return():
+        global is_navigating, current_location, current_progress
+        with state_lock:
+            current_progress = 0.0
+            is_navigating    = True
+        rospy.loginfo(f"[Return] Returning to Node 1 from Node {from_node}")
+        success = my_robot.execute_path(from_node, 1)
+        with state_lock:
+            is_navigating = False
+            if success:
+                current_location = 1
+        rospy.loginfo("[Return] ✓ Back at Node 1." if success else "[Return] ✗ Failed to return to Node 1.")
+
+    threading.Thread(target=run_return).start()
+    return jsonify({
+        "status":      "starting",
+        "message":     f"Returning to Node 1 from Node {from_node}",
+        "from_node":   from_node,
+        "target_node": 1,
+        "target_pose": NODE_POSES[1],
     }), 200
 
 
