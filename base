@@ -464,7 +464,6 @@ class OdomRobot:
             rospy.loginfo(f"[Path] Step {step_idx}/{total_steps} — nav to Node {waypoint}")
             success = self.navigate_to_node(waypoint)
             if not success:
-                 Hobrupted = True
                 rospy.logwarn(f"[Path] Failed at Node {waypoint}. Aborting.")
                 return False
             with state_lock:
