@@ -1,3 +1,8 @@
+$ rosrun my_robot REMAKE.py
+  File "/home/ubutu2004/catkin_ws/src/my_robot/src/REMAKE.py", line 463
+    rospy.logwarn(f"[Path] Failed at Node {waypoint}. Aborting.")
+                                                                ^
+IndentationError: unindent does not match any outer indentation level
 #!/usr/bin/env python3
 import rospy
 import math
