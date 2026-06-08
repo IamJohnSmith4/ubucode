@@ -25,27 +25,30 @@ state_lock         = threading.Lock()
 # NODE MAP
 # ==================================================
 NODE_POSES = {
-    1: {"x":  3.516, "y":  -0.651, "yaw_rad":  0.0},
-    2: {"x":  9.115, "y":  14.794, "yaw_rad":  0.0},
-    3: {"x":  9.803, "y":  22.450, "yaw_rad":  0.0},
-    5: {"x":  4.009, "y":  -0.575, "yaw_rad":  0.0},
-    6: {"x": 10.994, "y":   6.017, "yaw_rad":  0.0}, 
-    7: {"x": 10.030, "y":  19.084, "yaw_rad":  0.0}, # Added Node 7
+    1:  {"x":  3.516, "y":  -0.651, "yaw_rad": 0.0},
+    2:  {"x":  9.115, "y":  14.794, "yaw_rad": 0.0},
+    3:  {"x":  9.803, "y":  22.450, "yaw_rad": 0.0},
+    21: {"x":  4.009, "y":  -0.575, "yaw_rad": 0.0},  # was Node 5
+    22: {"x": 10.994, "y":   6.017, "yaw_rad": 0.0},  # was Node 6
+    23: {"x": 10.030, "y":  19.084, "yaw_rad": 0.0},  # was Node 7
+    24: {"x": 10.920, "y":  18.522, "yaw_rad": 0.0},  # 2->3 waypoint 1
+    25: {"x": 11.205, "y":  22.417, "yaw_rad": 0.0},  # 2->3 waypoint 2
 }
 
 # ==================================================
-# ==================================================
-# NODE PATH SEQUENCES (UPDATED)
+# NODE PATH SEQUENCES
 # ==================================================
 NODE_FULL_SEQUENCES = {
-    1: [1],
-    2: [1, 6, 2],       
-    3: [1, 6, 3],          # Changed from [1, 6, 2, 3] -> Now goes straight from 6 to 3
-    5: [5],
-    6: [1, 6],
-    "5->6": [5, 6],
-    "5->2": [5, 6, 2],  
-    "5->3": [5, 6, 3],     # Changed from [5, 6, 2, 3] -> Now goes straight from 6 to 3
+    1:       [1],
+    2:       [1, 22, 2],
+    3:       [1, 22, 3],
+    21:      [21],
+    22:      [1, 22],
+    "21->22": [21, 22],
+    "21->2":  [21, 22, 2],
+    "21->3":  [21, 22, 3],
+    "2->3":   [2, 24, 25, 3],   # specialized forward path
+    "3->2":   [3, 25, 24, 2],   # specialized reverse path
 }
 
 
@@ -93,7 +96,7 @@ class MovementLogger:
         lin_dist = math.sqrt(dx**2 + dy**2)
         moving   = lin_dist  > self.LINEAR_THRESHOLD
         rotating = abs(dyaw) > self.ANGULAR_THRESHOLD
-        
+
         direction = None
         if moving and rotating:
             direction = "↺ Turn Left" if dyaw > 0 else "↻ Turn Right"
@@ -108,7 +111,7 @@ class MovementLogger:
             direction = "↺ Turn Left" if dyaw > 0 else "↻ Turn Right"
         else:
             direction = "◼ Stationary"
-            
+
         self.prev_x, self.prev_y, self.prev_yaw = x, y, yaw
         if direction != self.last_logged_direction:
             rospy.loginfo(f"[Move] {direction}  "
@@ -122,7 +125,7 @@ class MovementLogger:
 # ==================================================
 class OdomRobot:
     def __init__(self, pub):
-        rospy.init_node("odom_robot", disable_signals=True) 
+        rospy.init_node("odom_robot", disable_signals=True)
         self.pub = pub
 
         # --- Odometry ---
@@ -163,25 +166,25 @@ class OdomRobot:
         rospy.loginfo("=== START HOME SEQUENCE ===")
         with state_lock:
             is_navigating = True
-            
+
         self.reset_home()
         self.move_forward(2.5)
         self.rotate(math.radians(-90))
         self.move_forward(0.5)
         self.rotate(math.radians(90))
         self.reset_home()
-        
+
         with state_lock:
             is_navigating = False
 
-        node5 = NODE_POSES[5]
-        rospy.loginfo("=== Setting AMCL initial pose → Node 5 ===")
-        self.set_initial_pose(node5["x"], node5["y"], node5["yaw_rad"])
+        node21 = NODE_POSES[21]
+        rospy.loginfo("=== Setting AMCL initial pose → Node 21 ===")
+        self.set_initial_pose(node21["x"], node21["y"], node21["yaw_rad"])
         rospy.sleep(1.0)
 
         with state_lock:
-            current_location = 5
-        rospy.loginfo("=== ROBOT READY — current_location set to Node 5 ===")
+            current_location = 21
+        rospy.loginfo("=== ROBOT READY — current_location set to Node 21 ===")
 
         self._wait_for_amcl(timeout=10.0)
         rospy.loginfo("=== READY ===")
@@ -259,15 +262,15 @@ class OdomRobot:
         self.rotate(math.radians(90))
         self.reset_home()
 
-        node5 = NODE_POSES[5]
-        rospy.loginfo("--- Setting AMCL pose → Node 5 ---")
-        self.set_initial_pose(node5["x"], node5["y"], node5["yaw_rad"])
+        node21 = NODE_POSES[21]
+        rospy.loginfo("--- Setting AMCL pose → Node 21 ---")
+        self.set_initial_pose(node21["x"], node21["y"], node21["yaw_rad"])
         rospy.sleep(1.0)
 
         with state_lock:
-            current_location = 5
+            current_location = 21
             is_navigating = False
-        rospy.loginfo("--- Home Sequence Complete: at Node 5 ---")
+        rospy.loginfo("--- Home Sequence Complete: at Node 21 ---")
 
     def move_forward(self, distance, bias=0.0):
         start_x, start_y = self.x, self.y
@@ -394,7 +397,7 @@ class OdomRobot:
             dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
             src      = NODE_POSES.get(current_location, {"x": bx, "y": by})
             dist_tot = math.sqrt((tx - src["x"])**2 + (ty - src["y"])**2)
-            
+
             if dist_tot > 0.01:
                 with state_lock:
                     current_progress = max(0.0, min(99.0, (1.0 - dist_rem / dist_tot) * 100.0))
@@ -407,21 +410,33 @@ class OdomRobot:
 
         return False
 
-
     def execute_path(self, start, target):
         global current_location
 
-        # Injection check: Overwrite path directly if the run pattern is precisely 2 -> 3
+        # ── Specialized 2 ↔ 3 routes via nodes 24 & 25 ──────────────────────
         if current_location == 2 and target == 3:
-            waypoints = [7, 3]
-            rospy.loginfo(f"[Path] Specialized Node 2 → Node 3 Route Activated. Interjecting Waypoint 7.")
-        elif target == 5 or (current_location == 5 and target < 1):
-            rospy.loginfo(f"[Path] DIRECT nav {current_location} → {target}")
-            success = self.navigate_to_node(target)
+            waypoints = NODE_FULL_SEQUENCES["2->3"][1:]   # [24, 25, 3]
+            rospy.loginfo("[Path] Specialized 2 → 3 route: 24 → 25 → 3")
+
+        elif current_location == 3 and target == 2:
+            waypoints = NODE_FULL_SEQUENCES["3->2"][1:]   # [25, 24, 2]
+            rospy.loginfo("[Path] Specialized 3 → 2 route: 25 → 24 → 2")
+
+        # ── Node 21 departures ───────────────────────────────────────────────
+        elif current_location == 21 and f"21->{target}" in NODE_FULL_SEQUENCES:
+            full_seq = NODE_FULL_SEQUENCES[f"21->{target}"]
+            waypoints = full_seq[1:]   # skip Node 21 itself
+            rospy.loginfo(f"[Path] Node 21 departure → {target}: {waypoints}")
+
+        elif target == 21:
+            rospy.loginfo(f"[Path] DIRECT nav {current_location} → 21")
+            success = self.navigate_to_node(21)
             if success:
                 with state_lock:
-                    current_location = target
+                    current_location = 21
             return success
+
+        # ── General forward / backward ───────────────────────────────────────
         else:
             going_forward = target > current_location
 
@@ -433,16 +448,11 @@ class OdomRobot:
                         current_location = target
                 return success
 
-            if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
-                full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
-                slice_start = 1  
-            else:
-                full_seq = NODE_FULL_SEQUENCES.get(target, [target])
-                try:
-                    slice_start = full_seq.index(current_location) + 1
-                except ValueError:
-                    slice_start = 0
-
+            full_seq = NODE_FULL_SEQUENCES.get(target, [target])
+            try:
+                slice_start = full_seq.index(current_location) + 1
+            except ValueError:
+                slice_start = 0
             waypoints = full_seq[slice_start:]
 
         total_steps = len(waypoints)
@@ -465,13 +475,14 @@ class OdomRobot:
             with state_lock:
                 current_location = waypoint
             rospy.loginfo(f"[Path] ✓ Node {waypoint} reached.")
-            
-            if waypoint == 6:
-                rospy.loginfo("[Path] Node 6 reached — Executing maneuver: Turn left 90° and Forward 1m")
-                self.reset_home()          
-                self.rotate(math.radians(90))  
+
+            # Node 22 maneuver (was Node 6)
+            if waypoint == 22:
+                rospy.loginfo("[Path] Node 22 reached — Executing maneuver: Turn left 90° and Forward 1m")
+                self.reset_home()
+                self.rotate(math.radians(90))
                 rospy.sleep(0.2)
-                self.move_forward(1.0)     
+                self.move_forward(1.0)
                 rospy.sleep(0.2)
                 rospy.loginfo("[Path] Maneuver finished — Resuming remaining track sequence")
 
@@ -481,11 +492,38 @@ class OdomRobot:
         rospy.loginfo(f"[Path] ✓ Full path to Node {target} complete!")
         return True
 
+
 # ==================================================
 # FLASK API SERVER
 # ==================================================
 app      = Flask(__name__)
 my_robot = None
+
+
+def _resolve_planned_sequence(current_location, target):
+    """Return the waypoint list that execute_path will follow, for UI preview."""
+    if current_location == 2 and target == 3:
+        return NODE_FULL_SEQUENCES["2->3"][1:]   # [24, 25, 3]
+
+    if current_location == 3 and target == 2:
+        return NODE_FULL_SEQUENCES["3->2"][1:]   # [25, 24, 2]
+
+    if target == 21:
+        return [21]
+
+    if current_location == 21 and f"21->{target}" in NODE_FULL_SEQUENCES:
+        return NODE_FULL_SEQUENCES[f"21->{target}"][1:]
+
+    going_forward = target > current_location
+    if not going_forward:
+        return [target]
+
+    full_seq = NODE_FULL_SEQUENCES.get(target, [target])
+    try:
+        slice_start = full_seq.index(current_location) + 1
+    except ValueError:
+        slice_start = 0
+    return full_seq[slice_start:] or [target]
 
 
 @app.route('/command', methods=['POST'])
@@ -498,30 +536,11 @@ def handle_command():
     with state_lock:
         if is_navigating:
             return jsonify({"status": "error", "message": "Robot is busy"}), 400
-            
+
     if target not in NODE_POSES:
         return jsonify({"status": "error", "message": f"Node {target} not in NODE_POSES"}), 400
 
-    # UI tracking forecast: Update sequence lookup if transitioning from 2 -> 3
-    if current_location == 2 and target == 3:
-        planned_sequence = [7, 3]
-    elif target == 5 or current_location == 5:
-        if current_location == 5 and f"5->{target}" in NODE_FULL_SEQUENCES:
-            full_seq = NODE_FULL_SEQUENCES[f"5->{target}"]
-            planned_sequence = full_seq[1:]
-        else:
-            planned_sequence = [target]
-    else:
-        going_forward = target > current_location
-        if not going_forward:
-            planned_sequence = [target]
-        else:
-            full_seq = NODE_FULL_SEQUENCES.get(target, [target])
-            try:
-                slice_start = full_seq.index(current_location) + 1
-            except ValueError:
-                slice_start = 0
-            planned_sequence = full_seq[slice_start:] or [target]
+    planned_sequence = _resolve_planned_sequence(current_location, target)
 
     def run_and_finish(s, t):
         global is_navigating, current_location, current_progress
@@ -585,7 +604,7 @@ def handle_reset_home():
     threading.Thread(target=my_robot.execute_home_sequence).start()
     return jsonify({
         "status":  "starting",
-        "message": "Executing home sequence → Node 5",
+        "message": "Executing home sequence → Node 21",
     }), 200
 
 
