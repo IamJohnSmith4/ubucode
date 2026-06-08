@@ -87,10 +87,7 @@ class OdomRobot:
         self.reset_home()
         rospy.loginfo("=== START HOME SEQUENCE ===")
         is_navigating = True
-        self.move_forward(2.5)
-        self.rotate(math.radians(-90))
-        self.move_forward(0.5)
-        self.rotate(math.radians(180))
+        self.move_forward(1)
         self.reset_home()
         is_navigating = False
         rospy.loginfo("=== ROBOT READY (HOME=0,0,0) ===")
@@ -202,10 +199,7 @@ class OdomRobot:
         rospy.loginfo("--- Starting Home Sequence ---")
         is_navigating = True
         self.reset_home()
-        self.move_forward(2.5)
-        self.rotate(math.radians(-90))
-        self.move_forward(0.5)
-        self.rotate(math.radians(180))
+        self.move_forward(1)
         self.reset_home()
         current_location = 1
         is_navigating = False
@@ -281,8 +275,8 @@ class OdomRobot:
         l, h, r, z = 0.04, 0.02, 0.01, 0.00
         paths = {
 
-            (1, 2):  [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 10.0, r), ("move", 5.2, z), ("rotate", 90), ("move", 1.0)],
-            (1, 3):  [("rotate", -90), ("move", 6.5), ("rotate", 90), ("move", 10.0, r), ("move", 10.0, r), ("move", 7.2, z), ("rotate", 90), ("move", 1.0)],
+            (1, 2):  [("move", 10.0, r), ("move", 5.2, z), ("rotate", 90), ("move", 1.0)],
+            (1, 3):  [("move", 10.0, r), ("move", 10.0, z), ("move", 7.2, r), ("rotate", 90), ("move", 1.0)],
            
             (2, 1):  [("rotate", 180), ("move", 1.0), ("rotate", -90), ("move", 10.0, l), ("move", 5.2, z), ("rotate", -90), ("move", 6.5), ("rotate", -90)],
             (2, 3):  [("rotate", 180), ("move", 1.0), ("rotate", 90), ("move", 10.0, l), ("move", 2.5, r), ("rotate", 90), ("move", 1.0)],
