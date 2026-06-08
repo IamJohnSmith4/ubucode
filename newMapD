@@ -184,7 +184,13 @@ class OdomRobot:
                 return True
             rospy.loginfo(f"[AMCL] Waiting... covariance={cov:.4f}")
             rate.sleep()
-        rospy.logwarn("[AMCL] Timeout — proceeding with best available pose.")
+        # หลัง timeout — ถ้าได้รับ amcl_pose แล้วให้ถือว่า ready
+        with self.amcl_lock:
+            if self.amcl_covariance < 1.0:   # เคยได้รับ message แล้ว
+                self.amcl_ready = True
+                rospy.logwarn(f"[AMCL] Timeout — forcing ready (covariance={self.amcl_covariance:.4f})")
+            else:
+                rospy.logwarn("[AMCL] Timeout — no AMCL pose received at all. Check amcl node.")
         return False
 
     def odom_callback(self, msg):
@@ -206,7 +212,7 @@ class OdomRobot:
             (_, _, self.amcl_yaw) = euler_from_quaternion([q.x, q.y, q.z, q.w])
             cov = msg.pose.covariance
             self.amcl_covariance = (cov[0] + cov[7]) / 2.0
-            if self.amcl_covariance < 0.05:
+            if self.amcl_covariance < 0.5:
                 self.amcl_ready = True
 
     def set_initial_pose(self, x, y, yaw_rad):
@@ -236,7 +242,7 @@ class OdomRobot:
 
     def get_best_pose(self):
         with self.amcl_lock:
-            if self.amcl_ready and self.amcl_covariance < 0.05:
+            if self.amcl_ready and self.amcl_covariance < 0.5:
                 return self.amcl_x, self.amcl_y, self.amcl_yaw, "amcl"
         return self.x, self.y, self.yaw, "odom"
 
@@ -482,13 +488,8 @@ def handle_command():
         if is_navigating:
             return jsonify({"status": "error", "message": "Robot is busy"}), 400
 
-    # ป้องกันสั่งเดินก่อน AMCL converge — จะทำให้หุ่นวาปผิดที่
     if not my_robot.amcl_ready:
-        return jsonify({
-            "status":  "error",
-            "message": "AMCL not ready yet. Check /amcl/status and wait for amcl_ready=true.",
-            "amcl_covariance": round(my_robot.amcl_covariance, 4),
-        }), 400
+        rospy.logwarn(f"[API] AMCL not ready (cov={my_robot.amcl_covariance:.4f}) — navigating with odom only")
 
     if target not in NODE_POSES:
         return jsonify({"status": "error", "message": f"Node {target} not in NODE_POSES"}), 400
