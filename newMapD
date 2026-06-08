@@ -128,6 +128,11 @@ class OdomRobot:
         self.amcl_covariance = 1.0
         self.amcl_ready      = False
         self.amcl_lock       = threading.Lock()
+        # persistent publisher — ห้าม destroy ก่อน AMCL รับ message
+        self.initialpose_pub = rospy.Publisher(
+            "/initialpose", PoseWithCovarianceStamped, queue_size=1, latch=True
+        )
+        rospy.sleep(0.5)   # รอให้ subscriber ฝั่ง AMCL ต่อก่อน
 
         # --- Movement Logger ---
         self.movement_logger = MovementLogger()
@@ -151,28 +156,36 @@ class OdomRobot:
         threading.Thread(target=self._async_boot_sequence, daemon=True).start()
 
     def _async_boot_sequence(self):
-        global is_navigating, current_location
+        global current_location
         rospy.sleep(1.0)
 
         node1 = NODE_POSES[1]
         rospy.loginfo("=== Setting AMCL initial pose → Node 1 ===")
         self.set_initial_pose(node1["x"], node1["y"], node1["yaw_rad"])
-        rospy.sleep(1.0)
+
+        # รอให้ AMCL converge ก่อนประกาศ READY
+        self._wait_for_amcl(timeout=20.0)
 
         with state_lock:
             current_location = 1
         rospy.loginfo("=== ROBOT READY — current_location set to Node 1 ===")
 
-        self._wait_for_amcl(timeout=10.0)
-        rospy.loginfo("=== READY ===")
-
-    def _wait_for_amcl(self, timeout=10.0):
-        rospy.loginfo("Waiting for /amcl_pose (%.0fs)..." % timeout)
-        try:
-            rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped, timeout=timeout)
-            rospy.loginfo("[AMCL] Running.")
-        except rospy.ROSException:
-            rospy.logwarn("[AMCL] Not received. Odometry only.")
+    def _wait_for_amcl(self, timeout=20.0):
+        """รอจนกว่า AMCL จะ converge (covariance < 0.05) หรือ timeout"""
+        rospy.loginfo(f"[AMCL] Waiting for convergence (timeout={timeout:.0f}s)...")
+        deadline = rospy.Time.now() + rospy.Duration(timeout)
+        rate = rospy.Rate(2)
+        while not rospy.is_shutdown() and rospy.Time.now() < deadline:
+            with self.amcl_lock:
+                ready = self.amcl_ready
+                cov   = self.amcl_covariance
+            if ready:
+                rospy.loginfo(f"[AMCL] Converged! covariance={cov:.4f}")
+                return True
+            rospy.loginfo(f"[AMCL] Waiting... covariance={cov:.4f}")
+            rate.sleep()
+        rospy.logwarn("[AMCL] Timeout — proceeding with best available pose.")
+        return False
 
     def odom_callback(self, msg):
         self.raw_x = msg.pose.pose.position.x
@@ -197,11 +210,12 @@ class OdomRobot:
                 self.amcl_ready = True
 
     def set_initial_pose(self, x, y, yaw_rad):
-        pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1, latch=True)
-        rospy.sleep(0.5)
+        """Publish /initialpose แล้วรอให้ AMCL รับจริงๆ ก่อน return"""
+        with self.amcl_lock:
+            self.amcl_ready = False
+
         msg = PoseWithCovarianceStamped()
         msg.header.frame_id = "map"
-        msg.header.stamp    = rospy.Time.now()
         msg.pose.pose.position.x    = x
         msg.pose.pose.position.y    = y
         msg.pose.pose.orientation.z = math.sin(yaw_rad / 2.0)
@@ -211,8 +225,14 @@ class OdomRobot:
         cov[7]  = 0.25
         cov[35] = 0.068
         msg.pose.covariance = cov
-        pub.publish(msg)
-        rospy.loginfo(f"[AMCL] Pose → x={x:.2f} y={y:.2f} yaw={math.degrees(yaw_rad):.1f}°")
+
+        # publish 3 ครั้งให้ AMCL รับแน่นอน
+        for _ in range(3):
+            msg.header.stamp = rospy.Time.now()
+            self.initialpose_pub.publish(msg)
+            rospy.sleep(0.3)
+
+        rospy.loginfo(f"[AMCL] Pose set → x={x:.2f} y={y:.2f} yaw={math.degrees(yaw_rad):.1f}°")
 
     def get_best_pose(self):
         with self.amcl_lock:
@@ -461,6 +481,14 @@ def handle_command():
     with state_lock:
         if is_navigating:
             return jsonify({"status": "error", "message": "Robot is busy"}), 400
+
+    # ป้องกันสั่งเดินก่อน AMCL converge — จะทำให้หุ่นวาปผิดที่
+    if not my_robot.amcl_ready:
+        return jsonify({
+            "status":  "error",
+            "message": "AMCL not ready yet. Check /amcl/status and wait for amcl_ready=true.",
+            "amcl_covariance": round(my_robot.amcl_covariance, 4),
+        }), 400
 
     if target not in NODE_POSES:
         return jsonify({"status": "error", "message": f"Node {target} not in NODE_POSES"}), 400
