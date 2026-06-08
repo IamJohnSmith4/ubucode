@@ -29,7 +29,7 @@ NODE_POSES = {
     2: {"x":  9.115, "y":  14.794, "yaw_rad":  0.0},
     3: {"x":  9.803, "y":  22.450, "yaw_rad":  0.0},
     5: {"x":  4.009, "y":  -0.575, "yaw_rad":  0.0},
-    6: {"x": 11.242, "y":   5.049, "yaw_rad":  0.0}, 
+    6: {"x": 10.994, "y":   6.017, "yaw_rad":  0.0}, 
     7: {"x": 10.030, "y":  19.084, "yaw_rad":  0.0}, # Added Node 7
 }
 
@@ -407,6 +407,7 @@ class OdomRobot:
 
         return False
 
+
     def execute_path(self, start, target):
         global current_location
 
@@ -479,7 +480,6 @@ class OdomRobot:
 
         rospy.loginfo(f"[Path] ✓ Full path to Node {target} complete!")
         return True
-
 
 # ==================================================
 # FLASK API SERVER
