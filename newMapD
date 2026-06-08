@@ -375,6 +375,18 @@ class OdomRobot:
             bx, by, byaw, pose_src = self.get_best_pose()
             self.movement_logger.update(bx, by, byaw)
 
+            # --- Drift detection: เปรียบ amcl vs odom ---
+            with self.amcl_lock:
+                ax, ay = self.amcl_x, self.amcl_y
+                cov    = self.amcl_covariance
+            odom_amcl_drift = math.sqrt((ax - self.x)**2 + (ay - self.y)**2)
+            if odom_amcl_drift > 1.5:
+                rospy.logwarn(
+                    f"[Nav] ⚠ Drift detected! odom=({self.x:.2f},{self.y:.2f}) "
+                    f"amcl=({ax:.2f},{ay:.2f}) drift={odom_amcl_drift:.2f}m — "
+                    f"AMCL may need more time to correct. cov={cov:.4f}"
+                )
+
             dist_rem = math.sqrt((tx - bx)**2 + (ty - by)**2)
             src      = NODE_POSES.get(current_location, {"x": bx, "y": by})
             dist_tot = math.sqrt((tx - src["x"])**2 + (ty - src["y"])**2)
@@ -383,9 +395,24 @@ class OdomRobot:
                 with state_lock:
                     current_progress = max(0.0, min(99.0, (1.0 - dist_rem / dist_tot) * 100.0))
 
+            # --- Early stop: หยุดทันทีเมื่อเข้าใกล้เป้า 0.3m ---
+            # ป้องกันหุ่นเดินเลยเป้าเพราะ AMCL update ช้า
+            GOAL_PROXIMITY = 0.30
+            if dist_rem < GOAL_PROXIMITY:
+                self.move_base_client.cancel_goal()
+                self.pub.publish(Twist())   # หยุด velocity ทันที
+                with state_lock:
+                    current_progress = 100.0
+                rospy.loginfo(
+                    f"[Nav] ✓ Early stop at Node {target_node} "
+                    f"(dist={dist_rem:.2f}m < {GOAL_PROXIMITY}m)"
+                )
+                return True
+
             rospy.loginfo(
                 f"[Nav] progress={current_progress:.1f}%  "
-                f"dist={dist_rem:.2f}m  pos=({bx:.2f},{by:.2f})  src={pose_src}"
+                f"dist={dist_rem:.2f}m  pos=({bx:.2f},{by:.2f})  "
+                f"drift={odom_amcl_drift:.2f}m  src={pose_src}"
             )
             rate.sleep()
 
