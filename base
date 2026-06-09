@@ -630,8 +630,8 @@ class OdomRobot:
                 if elapsed > 3.0 and not rear_blocked:
                     rospy.logwarn("[Avoid] Still blocked — nudging backward to create space.")
                     back = Twist()
-                    back.linear.x = -0.10
-                    for _ in range(30):  # ~0.5 s
+                    back.linear.x = -0.06
+                    for _ in range(15):  # ~0.5 s
                         self.pub.publish(back)
                         rospy.sleep(0.033)
                     self.pub.publish(Twist())
@@ -706,7 +706,7 @@ class OdomRobot:
         # ── Delay obstacle detection for first leg (Node 2) ──────────
         # Give the robot 6 seconds to move away from the start area
         # (near the water dispenser) before enabling obstacle avoidance.
-        obstacle_delay_sec = 30.0 if target_node == 2 else 0.0
+        obstacle_delay_sec = 6.0 if target_node == 2 else 0.0
         nav_start_time     = time.time()
         if obstacle_delay_sec > 0:
             rospy.loginfo(
@@ -1020,19 +1020,36 @@ def handle_reset_home():
             is_navigating    = True
             current_progress = 0.0
 
-        my_robot.set_initial_pose(0.0, 0.0, 0.0)
-        rospy.sleep(1.0)
+        # ── If coming from Node 3, stop at Node 2 first ──────────────
+        with state_lock:
+            last_node = current_location
 
-        success = my_robot.navigate_to_node(1)
+        if last_node == 3:
+            rospy.loginfo("[Home] Last node was 3 — stopping at Node 2 first.")
+            success = my_robot.navigate_to_node(2)
+            if not success:
+                rospy.logwarn("[Home] Failed to reach Node 2. Aborting return-home.")
+                with state_lock:
+                    is_navigating = False
+                return
+            with state_lock:
+                current_location = 2
+            rospy.loginfo("[Home] ✓ Node 2 reached — continuing to Node 10.")
+            rospy.sleep(0.5)
+
+        success = my_robot.navigate_to_node(10)
 
         with state_lock:
             is_navigating = False
             if success:
-                current_location = 1
+                current_location = 10
                 current_progress = 100.0
 
     threading.Thread(target=run_home, daemon=True).start()
-    return jsonify({"status": "starting", "target_node": 1}), 200
+    with state_lock:
+        last_node = current_location
+    route = [2, 10] if last_node == 3 else [10]
+    return jsonify({"status": "starting", "target_node": 10, "route": route}), 200
 
 
 # ── NEW: obstacle config endpoint ─────────────────────────────────────
