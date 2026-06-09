@@ -120,8 +120,8 @@ class OdomRobot:
         self.pub = pub
 
         # --- Odometry ---
-        self.raw_x, self.raw_y, self.raw_yaw         = 0.0, 0.0, 0.0
-        self.x, self.y, self.yaw                     = 0.0, 0.0, 0.0
+        self.raw_x, self.raw_y, self.raw_yaw          = 0.0, 0.0, 0.0
+        self.x, self.y, self.yaw                      = 0.0, 0.0, 0.0
         self.offset_x, self.offset_y, self.offset_yaw = 0.0, 0.0, 0.0
 
         # --- AMCL ---
@@ -157,7 +157,7 @@ class OdomRobot:
 
     # --------------------------------------------------
     def _async_boot_sequence(self):
-        global current_location, is_navigating
+        global current_location
         rospy.sleep(1.0)
 
         node1 = NODE_POSES[1]
@@ -170,20 +170,14 @@ class OdomRobot:
             current_location = 1
         rospy.loginfo("=== ROBOT READY — current_location set to Node 1 ===")
 
-        # ── Navigate to Node 10 on startup ──────────────────────────
-        rospy.loginfo("=== Boot: Navigating to Node 10 ===")
-        with state_lock:
-            is_navigating = True
-
-        success = self.navigate_to_node(10)
+        # ── Teleport AMCL display to Node 10 (no physical movement) ──
+        node10 = NODE_POSES[10]
+        rospy.loginfo("=== Boot: Setting AMCL pose → Node 10 (display only) ===")
+        self.set_initial_pose(node10["x"], node10["y"], node10["yaw_rad"])
 
         with state_lock:
-            is_navigating = False
-            if success:
-                current_location = 10
-                rospy.loginfo("=== Boot: Arrived at Node 10 ===")
-            else:
-                rospy.logwarn("=== Boot: Failed to reach Node 10 — staying at Node 1 ===")
+            current_location = 10
+        rospy.loginfo("=== Boot: AMCL display set to Node 10 ===")
 
     # --------------------------------------------------
     def _wait_for_amcl(self, timeout=20.0):
