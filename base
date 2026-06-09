@@ -42,8 +42,6 @@ NODE_FULL_SEQUENCES = {
     3:      [1, 2, 3],
     "2->3": [2, 3],
     "3->2": [3, 2],
-    "10->2": [10, 2],
-    "10->3": [10, 2, 3],
 }
 
 
@@ -114,19 +112,41 @@ class ScanAnalyser:
 
     # ── Internal analysis ────────────────────────────────────────────
     def _angle_to_index(self, scan, angle_deg):
-        """Convert an angle (degrees, 0=front) to a LaserScan index."""
-        angle_rad = math.radians(angle_deg)
-        idx = int(round((angle_rad - scan.angle_min) / scan.angle_increment))
-        return max(0, min(len(scan.ranges) - 1, idx))
+        """
+        Convert a robot-relative angle (degrees, 0=front, +left, -right)
+        to a LaserScan index.
+
+        LS01D publishes angle_min=0, angle_max=2pi (0->360 CCW).
+        Front of robot = index 0 (0 rad).
+        Left  (+90 deg) = index ~N/4
+        Rear  (180 deg) = index ~N/2
+        Right (-90 deg) = index ~3N/4 (wrapped)
+        """
+        n = len(scan.ranges)
+        # Normalise to 0-360
+        angle_norm = angle_deg % 360.0
+        angle_rad  = math.radians(angle_norm)
+        idx = int(round(angle_rad / scan.angle_increment)) % n
+        return idx
 
     def _sector_min(self, scan, from_deg, to_deg):
-        """Minimum valid range in a degree sector."""
-        i0 = self._angle_to_index(scan, from_deg)
-        i1 = self._angle_to_index(scan, to_deg)
-        if i0 > i1:
-            i0, i1 = i1, i0
-        ranges = [r for r in scan.ranges[i0:i1+1]
-                  if scan.range_min < r < scan.range_max]
+        """
+        Minimum valid range between two robot-relative angles.
+        Handles wrap-around (e.g. -30 to +30 crosses index 0).
+        """
+        n   = len(scan.ranges)
+        i0  = self._angle_to_index(scan, from_deg)
+        i1  = self._angle_to_index(scan, to_deg)
+
+        # Collect indices, handling wrap-around
+        if i0 <= i1:
+            indices = range(i0, i1 + 1)
+        else:
+            # wraps around (e.g. 330 -> 30)
+            indices = list(range(i0, n)) + list(range(0, i1 + 1))
+
+        ranges = [scan.ranges[i] for i in indices
+                  if scan.range_min < scan.ranges[i] < scan.range_max]
         return min(ranges) if ranges else float("inf")
 
     def _detect_clusters(self, scan, max_dist):
@@ -136,17 +156,21 @@ class ScanAnalyser:
         Used to distinguish narrow objects (humans) from wide walls.
         """
         half = self.FRONT_HALF_ARC
-        i0 = self._angle_to_index(scan, -half)
-        i1 = self._angle_to_index(scan,  half)
-        if i0 > i1:
-            i0, i1 = i1, i0
+        n  = len(scan.ranges)
+        i0 = self._angle_to_index(scan, -half)   # e.g. 300 deg
+        i1 = self._angle_to_index(scan,  half)   # e.g.  60 deg
+        # front arc wraps around index 0
+        if i0 <= i1:
+            indices = list(range(i0, i1 + 1))
+        else:
+            indices = list(range(i0, n)) + list(range(0, i1 + 1))
 
         clusters = []
         in_cluster = False
         cluster_start = 0
         cluster_min   = float("inf")
 
-        for i in range(i0, i1 + 1):
+        for i in indices:
             r = scan.ranges[i]
             valid = scan.range_min < r < max_dist
             if valid and not in_cluster:
