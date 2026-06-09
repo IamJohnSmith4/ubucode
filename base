@@ -79,8 +79,8 @@ class ScanAnalyser:
     """
 
     # ── Tunable parameters ──────────────────────────────────────────
-    DANGER_DIST   = 0.45   # m  – stop & wait / back-away
-    WARN_DIST     = 0.90   # m  – slow + steer
+    DANGER_DIST   = 0.30   # m  – stop & wait / back-away
+    WARN_DIST     = 0.60   # m  – slow + steer
     REAR_DIST     = 0.35   # m  – don't reverse if something is behind
 
     FRONT_HALF_ARC = 60    # deg each side of 0° = 120° total front arc
