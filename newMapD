@@ -615,6 +615,34 @@ def update_node(node_id):
     }
     return jsonify({"status": "updated", "node": node_id, "pose": NODE_POSES[node_id]}), 200
 
+@app.route('/command/reset-home', methods=['POST'])
+def handle_reset_home():
+    global is_navigating, current_location, current_progress
+
+    with state_lock:
+        if is_navigating:
+            return jsonify({"status": "error", "message": "Robot is busy"}), 400
+
+    def run_home():
+        global is_navigating, current_location, current_progress
+        with state_lock:
+            is_navigating = True
+            current_progress = 0.0
+
+        # Set AMCL pose to node 0 origin first, then navigate to node 1
+        my_robot.set_initial_pose(0.0, 0.0, 0.0)
+        rospy.sleep(1.0)
+
+        success = my_robot.navigate_to_node(1)
+
+        with state_lock:
+            is_navigating = False
+            if success:
+                current_location = 1
+                current_progress = 100.0
+
+    threading.Thread(target=run_home, daemon=True).start()
+    return jsonify({"status": "starting", "target_node": 1}), 200
 
 if __name__ == "__main__":
     velocity_publisher = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size=10)
