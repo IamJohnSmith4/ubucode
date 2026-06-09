@@ -677,6 +677,17 @@ class OdomRobot:
             current_progress = 0.0
         self.movement_logger.reset()
 
+        # ── Delay obstacle detection for first leg (Node 2) ──────────
+        # Give the robot 6 seconds to move away from the start area
+        # (near the water dispenser) before enabling obstacle avoidance.
+        obstacle_delay_sec = 6.0 if target_node == 2 else 0.0
+        nav_start_time     = time.time()
+        if obstacle_delay_sec > 0:
+            rospy.loginfo(
+                f"[Nav] Obstacle detection DISABLED for first {obstacle_delay_sec:.0f}s "
+                f"(clearing start area)..."
+            )
+
         rate = rospy.Rate(10)
 
         while not rospy.is_shutdown():
@@ -687,17 +698,26 @@ class OdomRobot:
                     return False
 
             # ── Obstacle check ───────────────────────────────────────
-            zone, _, _, _, _ = self.scan_analyser.get_state()
-            if zone in ("DANGER", "WARN"):
-                should_continue = self._handle_obstacle_avoidance()
-                if not should_continue:
-                    return False
-                # Re-send goal after avoidance manoeuvre
-                send_goal()
-                with state_lock:
-                    current_progress = max(0.0, current_progress - 5.0)
-                rospy.sleep(0.3)
-                continue
+            elapsed = time.time() - nav_start_time
+            if elapsed < obstacle_delay_sec:
+                rospy.loginfo_throttle(
+                    2.0,
+                    f"[Nav] Obstacle detection paused — {obstacle_delay_sec - elapsed:.1f}s remaining"
+                )
+            else:
+                if elapsed - obstacle_delay_sec < 0.1 and obstacle_delay_sec > 0:
+                    rospy.loginfo("[Nav] ✅ Obstacle detection now ACTIVE.")
+                zone, _, _, _, _ = self.scan_analyser.get_state()
+                if zone in ("DANGER", "WARN"):
+                    should_continue = self._handle_obstacle_avoidance()
+                    if not should_continue:
+                        return False
+                    # Re-send goal after avoidance manoeuvre
+                    send_goal()
+                    with state_lock:
+                        current_progress = max(0.0, current_progress - 5.0)
+                    rospy.sleep(0.3)
+                    continue
             # ────────────────────────────────────────────────────────
 
             state = self.move_base_client.get_state()
