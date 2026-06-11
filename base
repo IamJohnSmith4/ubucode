@@ -31,22 +31,32 @@ NODE_POSES = {
     2:  {"x": 17.064, "y":  1.632, "yaw_rad": 0.0},
     3:  {"x": 32.199, "y":  4.749, "yaw_rad": 0.0},
     10: {"x":  3.668, "y":  0.321, "yaw_rad": 0.0},
-    11: {"x":  21.719, "y":  1.271, "yaw_rad": 0.0},
-    12: {"x":  10.383, "y":  0.317, "yaw_rad": 0.0},
+    11: {"x": 21.719, "y":  1.271, "yaw_rad": 0.0},
+    12: {"x": 10.383, "y":  0.317, "yaw_rad": 0.0},
 }
 
 # ==================================================
-# NODE PATH SEQUENCES
+# ROUTE TABLE  (from, to) -> [waypoints]
 # ==================================================
-NODE_FULL_SEQUENCES = {
-    1:       [1],
-    2:       [1, 2],
-    3:       [1, 2, 3],
-    10:      [10],
-    "2->3":  [2, 3],
-    "3->2":  [3, 2],
-    "2->10": [2, 10],
-    "3->10": [3, 2, 10],
+ROUTE_TABLE = {
+    (1,  2):  [2],
+    (1,  3):  [2, 3],
+    (1,  10): [10],
+    (2,  1):  [12, 1],
+    (2,  3):  [3],
+    (2,  10): [10],
+    (3,  1):  [11, 12, 1],
+    (3,  2):  [11, 2],
+    (3,  10): [11, 2, 10],
+    (10, 1):  [1],
+    (10, 2):  [2],
+    (10, 3):  [2, 3],
+    (11, 1):  [12, 1],
+    (11, 2):  [2],
+    (11, 10): [2, 10],
+    (12, 1):  [1],
+    (12, 2):  [2],
+    (12, 10): [10],
 }
 
 
@@ -67,36 +77,19 @@ signal.signal(signal.SIGINT, signal_handler)
 # SCAN ANALYSER  (LiDAR obstacle / human detection)
 # ==================================================
 class ScanAnalyser:
-    """
-    Analyses LaserScan data and decides whether the robot should
-    pause, slow down, or steer around an obstacle.
+    DANGER_DIST    = 0.30
+    WARN_DIST      = 0.60
+    REAR_DIST      = 0.35
 
-    Zones (all distances in metres):
-      DANGER  - robot MUST stop / back away
-      WARN    - robot slows down and publishes an avoidance twist
-      CLEAR   - robot operates normally
+    FRONT_HALF_ARC = 60
+    SIDE_ARC       = 30
 
-    The front arc is split into LEFT / CENTRE / RIGHT thirds so the
-    avoidance logic can steer toward the emptier side.
+    MAX_WAIT_SEC   = 8.0
+    SLOW_LINEAR    = 0.05
+    AVOID_ANGULAR  = 0.35
 
-    Wall-safety: a rear-arc check prevents the robot from reversing
-    into a wall while avoiding a front obstacle.
-    """
-
-    # Tunable parameters
-    DANGER_DIST    = 0.30   # m  - stop & wait / back-away
-    WARN_DIST      = 0.60   # m  - slow + steer
-    REAR_DIST      = 0.35   # m  - don't reverse if something is behind
-
-    FRONT_HALF_ARC = 60     # deg each side of 0deg = 120deg total front arc
-    SIDE_ARC       = 30     # deg - split front arc into L / C / R thirds
-
-    MAX_WAIT_SEC   = 8.0    # s  - give up waiting and try re-route
-    SLOW_LINEAR    = 0.05   # m/s while in WARN zone
-    AVOID_ANGULAR  = 0.35   # rad/s turn speed during avoidance
-
-    HUMAN_SIZE_MIN = 0.20   # m  - min cluster width to flag as human/object
-    HUMAN_SIZE_MAX = 1.00   # m  - max cluster width (walls are wider)
+    HUMAN_SIZE_MIN = 0.20
+    HUMAN_SIZE_MAX = 1.00
 
     def __init__(self):
         self._lock              = threading.Lock()
@@ -114,16 +107,6 @@ class ScanAnalyser:
         self._analyse()
 
     def _angle_to_index(self, scan, angle_deg):
-        """
-        Convert a robot-relative angle (degrees, 0=front, +left, -right)
-        to a LaserScan index.
-
-        LS01D publishes angle_min=0, angle_max=2pi (0->360 CCW).
-        Front of robot = index 0 (0 rad).
-        Left  (+90 deg) = index ~N/4
-        Rear  (180 deg) = index ~N/2
-        Right (-90 deg) = index ~3N/4 (wrapped)
-        """
         n          = len(scan.ranges)
         angle_norm = angle_deg % 360.0
         angle_rad  = math.radians(angle_norm)
@@ -131,27 +114,22 @@ class ScanAnalyser:
         return idx
 
     def _sector_min(self, scan, from_deg, to_deg):
-        """Minimum valid range between two robot-relative angles."""
         n  = len(scan.ranges)
         i0 = self._angle_to_index(scan, from_deg)
         i1 = self._angle_to_index(scan, to_deg)
-
         if i0 <= i1:
             indices = range(i0, i1 + 1)
         else:
             indices = list(range(i0, n)) + list(range(0, i1 + 1))
-
         ranges = [scan.ranges[i] for i in indices
                   if scan.range_min < scan.ranges[i] < scan.range_max]
         return min(ranges) if ranges else float("inf")
 
     def _detect_clusters(self, scan, max_dist):
-        """Find clusters of consecutive close readings in the front arc."""
         half = self.FRONT_HALF_ARC
         n    = len(scan.ranges)
         i0   = self._angle_to_index(scan, -half)
         i1   = self._angle_to_index(scan,  half)
-
         if i0 <= i1:
             indices = list(range(i0, i1 + 1))
         else:
@@ -233,7 +211,6 @@ class ScanAnalyser:
             self._last_log_time = now
 
     def get_state(self):
-        """Return (zone, direction, distance, human_detected, rear_blocked)."""
         d = self.obstacle_distance
         if d < self.DANGER_DIST:
             zone = "DANGER"
@@ -247,10 +224,10 @@ class ScanAnalyser:
         twist = Twist()
         if direction in ("centre", "left"):
             twist.linear.x  = self.SLOW_LINEAR
-            twist.angular.z = -self.AVOID_ANGULAR   # steer right
+            twist.angular.z = -self.AVOID_ANGULAR
         elif direction == "right":
             twist.linear.x  = self.SLOW_LINEAR
-            twist.angular.z =  self.AVOID_ANGULAR   # steer left
+            twist.angular.z =  self.AVOID_ANGULAR
         return twist
 
 
@@ -359,12 +336,11 @@ class OdomRobot:
     def _scan_callback(self, msg):
         self.scan_analyser.update(msg)
 
-    # ── Boot: set AMCL to Node 10 (where robot physically is) ───────
+    # ── Boot: set AMCL to Node 10 ────────────────────────────────────
     def _async_boot_sequence(self):
         global current_location
         rospy.sleep(1.0)
 
-        # Robot physically starts at Node 10 — set AMCL there directly
         node10 = NODE_POSES[10]
         rospy.loginfo("=== Boot: Setting AMCL initial pose → Node 10 ===")
         self.set_initial_pose(node10["x"], node10["y"], node10["yaw_rad"])
@@ -456,7 +432,7 @@ class OdomRobot:
         self.x = self.y = self.yaw = 0.0
         rospy.sleep(0.5)
 
-    # ── Low-level movement (used only if needed outside move_base) ──
+    # ── Low-level movement ──────────────────────────────────────────
     def move_forward(self, distance, bias=0.0):
         start_x, start_y = self.x, self.y
         target_yaw       = self.yaw
@@ -539,20 +515,14 @@ class OdomRobot:
         goal.target_pose.pose.orientation.w = math.cos(yr / 2.0)
         return goal
 
-    # ── Obstacle / human avoidance layer ────────────────────────────
+    # ── Obstacle avoidance layer ─────────────────────────────────────
     def _handle_obstacle_avoidance(self):
-        """
-        Called inside navigate_to_node loop whenever an obstacle is seen.
-        Returns True  -> caller should continue the nav loop normally
-                False -> navigation was cancelled externally, caller should abort
-        """
         sa = self.scan_analyser
         zone, direction, dist, human, rear_blocked = sa.get_state()
 
         if zone == "CLEAR":
             return True
 
-        # DANGER: stop and wait
         if zone == "DANGER":
             tag = "HUMAN" if human else "OBSTACLE"
             rospy.logwarn(
@@ -597,7 +567,6 @@ class OdomRobot:
 
                 rate.sleep()
 
-        # WARN: steer around
         if zone == "WARN":
             tag = "HUMAN" if human else "OBSTACLE"
             rospy.loginfo(
@@ -649,9 +618,6 @@ class OdomRobot:
             current_progress = 0.0
         self.movement_logger.reset()
 
-        # Obstacle detection delay:
-        #   Node 2/3: 70s (long corridor near start has fixed obstacles)
-        #   Node 10 / others: 6s (short delay to clear immediate surroundings)
         if target_node in (2, 3):
             obstacle_delay_sec = 70.0
         else:
@@ -672,7 +638,6 @@ class OdomRobot:
                     rospy.loginfo("[Nav] Goal cancelled.")
                     return False
 
-            # Obstacle check
             elapsed = time.time() - nav_start_time
             if elapsed < obstacle_delay_sec:
                 rospy.loginfo_throttle(
@@ -693,7 +658,6 @@ class OdomRobot:
                     rospy.sleep(0.3)
                     continue
 
-            # Check move_base state
             state = self.move_base_client.get_state()
 
             if state == GoalStatus.SUCCEEDED:
@@ -707,7 +671,6 @@ class OdomRobot:
                 rospy.logwarn(f"[Nav] move_base failed. GoalStatus={state}")
                 return False
 
-            # Progress tracking
             bx, by, byaw, pose_src = self.get_best_pose()
             self.movement_logger.update(bx, by, byaw)
 
@@ -729,7 +692,6 @@ class OdomRobot:
                 with state_lock:
                     current_progress = max(0.0, min(99.0, (1.0 - dist_rem / dist_tot) * 100.0))
 
-            # Early stop when close enough
             GOAL_PROXIMITY = 0.30
             if dist_rem < GOAL_PROXIMITY:
                 self.move_base_client.cancel_goal()
@@ -753,11 +715,6 @@ class OdomRobot:
 
     # ── High-level path execution ────────────────────────────────────
     def execute_path(self, target):
-        """
-        Navigate from current_location to target, following the correct
-        waypoint sequence. 'start' parameter removed — always uses the
-        global current_location for accuracy.
-        """
         global current_location
 
         with state_lock:
@@ -765,65 +722,17 @@ class OdomRobot:
 
         rospy.loginfo(f"[Path] execute_path: {loc} -> {target}")
 
-        # ── Special-case routes ──────────────────────────────────────
         if loc == target:
             rospy.loginfo(f"[Path] Already at Node {target}")
             return True
 
-        if loc == 2 and target == 3:
-            waypoints = [3]
-            rospy.loginfo("[Path] 2 -> 3 direct")
-
-        elif loc == 3 and target == 2:
-            waypoints = [2]
-            rospy.loginfo("[Path] 3 -> 2 direct")
-
-        elif target == 10:
-            # Return home — always handled explicitly
-            if loc == 3:
-                waypoints = [2, 10]
-                rospy.loginfo("[Path] 3 -> 2 -> 10")
-            elif loc == 2:
-                waypoints = [10]
-                rospy.loginfo("[Path] 2 -> 10 direct")
-            elif loc == 1:
-                waypoints = [10]
-                rospy.loginfo("[Path] 1 -> 10 direct")
-            else:
-                waypoints = [10]
-                rospy.loginfo(f"[Path] {loc} -> 10 direct")
-
-        elif target in (1, 2, 3):
-            # Forward / backward along the main corridor
-            corridor = [1, 2, 3]
-            if loc in corridor and target in corridor:
-                loc_idx    = corridor.index(loc)
-                target_idx = corridor.index(target)
-                if target_idx > loc_idx:
-                    waypoints = corridor[loc_idx + 1: target_idx + 1]
-                    rospy.loginfo(f"[Path] Forward {loc} -> {target}: {waypoints}")
-                else:
-                    # Backward: go directly
-                    waypoints = [target]
-                    rospy.loginfo(f"[Path] Backward {loc} -> {target} direct")
-            elif loc == 10:
-                # Coming from home to corridor
-                full_seq = NODE_FULL_SEQUENCES.get(target, [target])
-                waypoints = full_seq  # e.g. target=2 -> [1,2] but we go direct
-                # Node 10 is near Node 1 area, navigate directly to target
-                waypoints = [target] if target == 1 else [2] if target == 2 else [2, 3]
-                rospy.loginfo(f"[Path] From Node 10 -> {target}: {waypoints}")
-            else:
-                waypoints = [target]
-                rospy.loginfo(f"[Path] {loc} -> {target} direct")
-
-        else:
+        waypoints = ROUTE_TABLE.get((loc, target))
+        if waypoints is None:
+            rospy.logwarn(f"[Path] No route defined for {loc}->{target}, going direct.")
             waypoints = [target]
-            rospy.loginfo(f"[Path] {loc} -> {target} direct (unknown route)")
 
-        # ── Execute waypoints ────────────────────────────────────────
-        total_steps = len(waypoints)
         rospy.loginfo(f"[Path] Waypoints: {waypoints}")
+        total_steps = len(waypoints)
 
         for step_idx, waypoint in enumerate(waypoints, start=1):
             rospy.loginfo(f"[Path] Step {step_idx}/{total_steps} — nav to Node {waypoint}")
@@ -849,28 +758,9 @@ my_robot = None
 
 
 def _resolve_planned_sequence(loc, target):
-    """Preview the planned waypoints for the API response."""
     if loc == target:
         return []
-    if loc == 2 and target == 3:
-        return [3]
-    if loc == 3 and target == 2:
-        return [2]
-    if target == 10:
-        if loc == 3:
-            return [2, 10]
-        return [10]
-    if target in (1, 2, 3):
-        corridor = [1, 2, 3]
-        if loc in corridor and target in corridor:
-            li = corridor.index(loc)
-            ti = corridor.index(target)
-            if ti > li:
-                return corridor[li + 1: ti + 1]
-            return [target]
-        if loc == 10:
-            return [target] if target in (1, 2) else [2, 3]
-    return [target]
+    return ROUTE_TABLE.get((loc, target), [target])
 
 
 @app.route('/command', methods=['POST'])
@@ -931,7 +821,8 @@ def get_status():
         "current_progress": round(current_progress, 1),
         "odom_position":    {"x": round(my_robot.x, 3), "y": round(my_robot.y, 3)},
         "odom_yaw_deg":     round(math.degrees(my_robot.yaw), 2),
-        "amcl_position":    {"x": round(my_robot.amcl_x, 3), "y": round(my_robot.amcl_y, 3)},
+        "amcl_position":    {"x": round(my_robot.amcl_x, 3),
+                             "y": round(my_robot.amcl_y, 3)},
         "amcl_yaw_deg":     round(math.degrees(my_robot.amcl_yaw), 2),
         "amcl_covariance":  round(my_robot.amcl_covariance, 4),
         "amcl_ready":       my_robot.amcl_ready,
@@ -1019,38 +910,36 @@ def handle_reset_home():
         return jsonify({"status": "already_there",
                         "message": "Already at Node 10 (home)"}), 200
 
+    # Pre-calculate route to home using ROUTE_TABLE
+    route = ROUTE_TABLE.get((loc, 10), [10])
+
     def run_home():
         global is_navigating, current_location, current_progress
         with state_lock:
             is_navigating    = True
             current_progress = 0.0
-            last_node        = current_location
+            start_loc        = current_location
 
-        # Node 3 must pass through Node 2 first
-        if last_node == 3:
-            rospy.loginfo("[Home] From Node 3 — going to Node 2 first.")
-            success = my_robot.navigate_to_node(2)
+        waypoints = ROUTE_TABLE.get((start_loc, 10), [10])
+        rospy.loginfo(f"[Home] {start_loc} -> 10 via {waypoints}")
+
+        for wp in waypoints:
+            success = my_robot.navigate_to_node(wp)
             if not success:
-                rospy.logwarn("[Home] Failed to reach Node 2. Aborting.")
+                rospy.logwarn(f"[Home] Failed at Node {wp}. Aborting.")
                 with state_lock:
                     is_navigating = False
                 return
             with state_lock:
-                current_location = 2
-            rospy.loginfo("[Home] Node 2 reached — continuing to Node 10.")
+                current_location = wp
+            rospy.loginfo(f"[Home] Passed Node {wp}.")
             rospy.sleep(0.5)
 
-        success = my_robot.navigate_to_node(10)
         with state_lock:
-            is_navigating = False
-            if success:
-                current_location = 10
-                current_progress = 100.0
-                rospy.loginfo("[Home] Arrived at Node 10 (home).")
-            else:
-                rospy.logwarn("[Home] Failed to reach Node 10.")
+            is_navigating    = False
+            current_progress = 100.0
+        rospy.loginfo("[Home] Arrived at Node 10 (home).")
 
-    route = [2, 10] if loc == 3 else [10]
     threading.Thread(target=run_home, daemon=True).start()
     return jsonify({"status": "starting", "from_node": loc,
                     "target_node": 10, "route": route}), 200
@@ -1082,6 +971,13 @@ def set_obstacle_config():
     if "HUMAN_SIZE_MIN_m" in data: sa.HUMAN_SIZE_MIN = float(data["HUMAN_SIZE_MIN_m"])
     if "HUMAN_SIZE_MAX_m" in data: sa.HUMAN_SIZE_MAX = float(data["HUMAN_SIZE_MAX_m"])
     return jsonify({"status": "updated"}), 200
+
+
+@app.route('/routes', methods=['GET'])
+def get_routes():
+    """Show all defined routes."""
+    out = {f"{k[0]}->{k[1]}": v for k, v in ROUTE_TABLE.items()}
+    return jsonify({"routes": out})
 
 
 # ==================================================
