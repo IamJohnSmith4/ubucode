@@ -47,7 +47,7 @@ NODE_FULL_SEQUENCES = {
     "2->3":  [2, 3],
     "3->2":  [3, 13, 12, 2],
     "2->10":  [2, 11, 10],
-    "3->10":  [3, 13, 12, 11, 10]
+    "3->10":  [3, 13, 12, 2, 11, 10]
 }
 
 
@@ -776,17 +776,17 @@ class OdomRobot:
             rospy.loginfo("[Path] 2 -> 3 direct")
 
         elif loc == 3 and target == 2:
-            waypoints = [2]
-            rospy.loginfo("[Path] 3 -> 2 direct")
+            waypoints = [13, 12 , 2]
+            rospy.loginfo("[Path] 3 -> 13 -> 12 -> 2 direct")
 
         elif target == 10:
             # Return home — always handled explicitly
             if loc == 3:
-                waypoints = [11, 2, 12, 10]
-                rospy.loginfo("[Path] 3 -> 11 -> 2 -> 12 -> 10")
+                waypoints = [13, 12, 11, 10]
+                rospy.loginfo("[Path] 3 -> 13 -> 12 -> 11 -> 10")
             elif loc == 2:
                 waypoints = [12, 10]
-                rospy.loginfo("[Path] 2 -> 12 -> 10")
+                rospy.loginfo("[Path] 2 -> 11 -> 10")
             else:
                 waypoints = [10]
                 rospy.loginfo(f"[Path] {loc} -> 10 direct")
@@ -853,12 +853,12 @@ def _resolve_planned_sequence(loc, target):
     if loc == 2 and target == 3:
         return [3]
     if loc == 3 and target == 2:
-        return [2]
+        return [13, 12, 2]
     if target == 10:
         if loc == 3:
-            return [11, 2, 12, 10]
+            return [13, 12, 11, 10]
         if loc == 2:
-            return [12, 10]
+            return [11, 10]
         return [10]
     if target in (1, 2, 3):
         corridor = [1, 2, 3]
