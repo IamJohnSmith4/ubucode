@@ -40,8 +40,11 @@ NODE_FULL_SEQUENCES = {
     1:      [1],
     2:      [1, 2],
     3:      [1, 2, 3],
+    10:     [10],
     "2->3": [2, 3],
     "3->2": [3, 2],
+    "2->10": [2, 10],
+    "3->10": [3, 2, 10],    
 }
 
 
@@ -706,7 +709,7 @@ class OdomRobot:
         # ── Delay obstacle detection for first leg (Node 2) ──────────
         # Give the robot 6 seconds to move away from the start area
         # (near the water dispenser) before enabling obstacle avoidance.
-        obstacle_delay_sec = 30.0 if target_node in (2, 3) else 0.0
+        obstacle_delay_sec = 70.0 if target_node in (2, 3) else 6.0
         nav_start_time     = time.time()
         if obstacle_delay_sec > 0:
             rospy.loginfo(
@@ -892,7 +895,8 @@ def handle_command():
     target = data.get('target')
 
     with state_lock:
-        if is_navigating:
+    	
+    	if is_navigating:
             return jsonify({"status": "error", "message": "Robot is busy"}), 400
 
     if not my_robot.amcl_ready:
