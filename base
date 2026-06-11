@@ -806,60 +806,63 @@ class OdomRobot:
         return False
 
     def execute_path(self, start, target):
-        global current_location
+    global current_location
 
-        if current_location == 2 and target == 3:
-            waypoints = NODE_FULL_SEQUENCES["2->3"][1:]
-            rospy.loginfo("[Path] 2 → 3 direct route")
-
-        elif current_location == 3 and target == 2:
-            waypoints = NODE_FULL_SEQUENCES["3->2"][1:]
-            rospy.loginfo("[Path] 3 → 2 direct route")
-
+    # ── Special cases ──────────────────────────────────────────
+    if current_location == 2 and target == 3:
+        waypoints = NODE_FULL_SEQUENCES["2->3"][1:]
+    elif current_location == 3 and target == 2:
+        waypoints = NODE_FULL_SEQUENCES["3->2"][1:]
+    
+    # ── เพิ่ม: กลับบ้าน Node 10 ──────────────────────────────
+    elif target == 10:
+        if current_location == 3:
+            waypoints = NODE_FULL_SEQUENCES["3->10"][1:]  # [2, 10]
+            rospy.loginfo("[Path] 3 → 10 via Node 2")
+        elif current_location == 2:
+            waypoints = NODE_FULL_SEQUENCES["2->10"][1:]  # [10]
+            rospy.loginfo("[Path] 2 → 10 direct")
         else:
-            going_forward = target > current_location
+            waypoints = [10]
+            rospy.loginfo(f"[Path] {current_location} → 10 direct")
 
-            if not going_forward:
-                rospy.loginfo(f"[Path] BACKWARD {current_location} → {target} | direct nav")
-                success = self.navigate_to_node(target)
-                if success:
-                    with state_lock:
-                        current_location = target
-                return success
+    else:
+        # forward/backward logic เดิม (สำหรับ node 1,2,3)
+        going_forward = target > current_location
+        if not going_forward:
+            rospy.loginfo(f"[Path] BACKWARD {current_location} → {target} | direct nav")
+            success = self.navigate_to_node(target)
+            if success:
+                with state_lock:
+                    current_location = target
+            return success
 
-            full_seq = NODE_FULL_SEQUENCES.get(target, [target])
-            try:
-                slice_start = full_seq.index(current_location) + 1
-            except ValueError:
-                slice_start = 0
-            waypoints = full_seq[slice_start:]
+        full_seq = NODE_FULL_SEQUENCES.get(target, [target])
+        try:
+            slice_start = full_seq.index(current_location) + 1
+        except ValueError:
+            slice_start = 0
+        waypoints = full_seq[slice_start:]
 
-        total_steps = len(waypoints)
-
-        if not waypoints:
-            rospy.loginfo(f"[Path] Already at or past Node {target}")
-            return True
-
-        rospy.loginfo(
-            f"[Path] Running path from {current_location} → {target} | "
-            f"Waypoints remaining: {waypoints}"
-        )
-
-        for step_idx, waypoint in enumerate(waypoints, start=1):
-            rospy.loginfo(f"[Path] Step {step_idx}/{total_steps} — nav to Node {waypoint}")
-            success = self.navigate_to_node(waypoint)
-            if not success:
-                rospy.logwarn(f"[Path] Failed at Node {waypoint}. Aborting.")
-                return False
-            with state_lock:
-                current_location = waypoint
-            rospy.loginfo(f"[Path] ✓ Node {waypoint} reached.")
-
-            if step_idx < total_steps:
-                rospy.sleep(0.5)
-
-        rospy.loginfo(f"[Path] ✓ Full path to Node {target} complete!")
+    # ── Execute waypoints ──────────────────────────────────────
+    total_steps = len(waypoints)
+    if not waypoints:
+        rospy.loginfo(f"[Path] Already at Node {target}")
         return True
+
+    for step_idx, waypoint in enumerate(waypoints, start=1):
+        rospy.loginfo(f"[Path] Step {step_idx}/{total_steps} — nav to Node {waypoint}")
+        success = self.navigate_to_node(waypoint)
+        if not success:
+            rospy.logwarn(f"[Path] Failed at Node {waypoint}. Aborting.")
+            return False
+        with state_lock:
+            current_location = waypoint
+        if step_idx < total_steps:
+            rospy.sleep(0.5)
+
+    rospy.loginfo(f"[Path] ✓ Full path to Node {target} complete!")
+    return True
 
 
 # ==================================================
