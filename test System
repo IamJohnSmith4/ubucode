@@ -1,1 +1,37 @@
+nano ~/record_position.sh
 
+#!/bin/bash
+echo "Recording position at Node $10..."
+curl -s http://localhost:5000/status | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(f'Node: $10')
+print(f'AMCL x: {data[\"amcl_position\"][\"x\"]}')
+print(f'AMCL y: {data[\"amcl_position\"][\"y\"]}')
+print(f'Source: {data[\"pose_source\"]}')
+" >> ~/results.txt
+echo "---" >> ~/results.txt
+
+chmod +x ~/record_position.sh
+
+# รันหลังจากหุ่นถึงแต่ละ Node
+~/record_position.sh 2
+
+
+# Home → ห้อง A
+curl -X POST http://localhost:5000/command \
+  -H "Content-Type: application/json" \
+  -d '{"start": 10, "target": 2}'
+
+# ห้อง A → ห้อง B
+curl -X POST http://localhost:5000/command \
+  -H "Content-Type: application/json" \
+  -d '{"start": 2, "target": 3}'
+
+# ห้อง B → Home
+curl -X POST http://localhost:5000/command \
+  -H "Content-Type: application/json" \
+  -d '{"start": 3, "target": 10}'
+
+Terminal 7 — บันทึกผลหลังหุ่นถึงจุดหมาย:
+curl http://localhost:5000/status
