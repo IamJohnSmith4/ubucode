@@ -94,3 +94,10 @@ AMCL y: 1.459
 Source: amcl
 Cov:    0.0114
 ---
+=== Node 2 ===
+Time: จ. 15 มิ.ย. 2569 13:59:07 +07
+AMCL x: 16.9
+AMCL y: 1.459
+Source: amcl
+Cov:    0.0114
+---
