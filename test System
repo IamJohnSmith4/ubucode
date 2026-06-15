@@ -101,3 +101,39 @@ AMCL y: 1.459
 Source: amcl
 Cov:    0.0114
 ---
+
+=== Node 3 ===
+Time: จ. 15 มิ.ย. 2569 14:25:53 +07
+AMCL x: 31.741
+AMCL y: 4.574
+Source: amcl
+Cov:    0.0018
+---
+=== Node 3 ===
+Time: จ. 15 มิ.ย. 2569 15:30:29 +07
+AMCL x: 31.905
+AMCL y: 4.538
+Source: amcl
+Cov:    0.0011
+---
+=== Node 3 ===
+Time: จ. 15 มิ.ย. 2569 15:36:41 +07
+AMCL x: 31.999
+AMCL y: 4.605
+Source: amcl
+Cov:    0.0176
+---
+=== Node 3 ===
+Time: จ. 15 มิ.ย. 2569 15:42:08 +07
+AMCL x: 32.059
+AMCL y: 4.605
+Source: amcl
+Cov:    0.0018
+---
+=== Node 3 ===
+Time: จ. 15 มิ.ย. 2569 15:47:48 +07
+AMCL x: 31.986
+AMCL y: 4.586
+Source: amcl
+Cov:    0.0143
+---
