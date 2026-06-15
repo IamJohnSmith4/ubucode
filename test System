@@ -42,7 +42,6 @@ curl -X POST http://localhost:5000/command \
 
 Terminal 7 — บันทึกผลหลังหุ่นถึงจุดหมาย:
 curl http://localhost:5000/status
-
 == Node 2 ===
 Time: จ. 15 มิ.ย. 2569 13:04:37 +07
 ---
@@ -80,4 +79,18 @@ AMCL x: 16.706
 AMCL y: 1.402
 Source: amcl
 Cov:    0.0075
+---
+=== Node 2 ===
+Time: จ. 15 มิ.ย. 2569 13:53:51 +07
+AMCL x: 16.882
+AMCL y: 1.447
+Source: odom
+Cov:    6.3674
+---
+=== Node 2 ===
+Time: จ. 15 มิ.ย. 2569 13:59:07 +07
+AMCL x: 16.9
+AMCL y: 1.459
+Source: amcl
+Cov:    0.0114
 ---
