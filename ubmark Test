@@ -1,34 +1,28 @@
-# Terminal 1
-roscore
-
-# Terminal 2 (source workspace ก่อนถ้ายังไม่ได้ตั้งใน .bashrc)
-roslaunch kobuki_node minimal.launch
-
-# Terminal 3 — เช็คว่า /odom มีข้อมูลไหลออกมาก่อนเริ่มจริง
-rostopic echo /odom
-
-# Terminal 4 — รันตัวเก็บข้อมูล
-rosrun <ชื่อ_package_จริงของคุณ> umbmark_loop.py --direction cw
+ยืนยันลำดับขั้นตอนของคุณ
+ถูกต้องครับ:
+chmod +x umbmark_loop.py
+Terminal 1: roscore
+Terminal 2: roslaunch kobuki_node minimal.launch
+Terminal 3: rostopic echo /odom (เช็คครั้งเดียวก่อนเริ่ม แล้ว Ctrl+C ปิดได้ ไม่ต้องเปิดค้างไว้)
+Terminal 4: rosrun ... umbmark_loop.py --direction cw → วิ่งครบ 5 รอบ → ตารางสรุปโผล่ขึ้นมาอัตโนมัติให้ถ่ายรูป/จด
+(ใช้ terminal เดิมหรือใหม่ก็ได้) rosrun ... umbmark_loop.py --direction ccw → ครบ 5 รอบ → สรุปตารางอีกครั้ง
+python3 umbmark_calc.py --file umbmark_results.csv --L 4.0 --wheelbase 0.230 (ถ้าไฟล์ CSV อยู่บนเครื่องเดียวกัน สามารถรันต่อได้ทันทีโดยไม่ต้องย้ายไฟล์ไปเครื่องอื่นเลย)
 
 
 #!/usr/bin/env python3
 # umbmark_loop.py — เก็บข้อมูล UMBmark แบบวนลูป 5 รอบในการรันครั้งเดียว
-# ใช้ /odom แบบดิบ ตามหลัก UMBmark (Borenstein & Feng, 1996)
+# บันทึกเฉพาะคอลัมน์ตามตารางในคู่มือ (หัวข้อ 3.5):
+#   รอบ, x_abs (m), y_abs (m), x_odom (m), y_odom (m), Δx = x_abs-x_odom, Δy
+#
+# หมายเหตุ: x_odom, y_odom ในตารางนี้ = ระยะที่ /odom รายงานว่าหุ่นเคลื่อนที่ไป
+#           จากจุดเริ่มต้น (ไม่ใช่ตำแหน่งสัมบูรณ์บนแผนที่)
 #
 # วิธีใช้:
 #   rosrun <your_package> umbmark_loop.py --direction cw
 #   (พอครบ 5 รอบ cw แล้ว รันใหม่อีกทีด้วย --direction ccw สำหรับอีก 5 รอบ)
 #
-# ขั้นตอนการทำงานของสคริปต์ (ต่อ 1 รอบ):
-#   1. พิมพ์บอกว่าอยู่รอบที่เท่าไหร่ -> รอกด Enter (คุณตั้งหุ่นให้ตรงเครื่องหมายก่อนกด)
-#   2. อ่าน odom เริ่มต้น
-#   3. วิ่งสี่เหลี่ยม 4x4m ตามทิศที่เลือก
-#   4. อ่าน odom สุดท้าย
-#   5. ถามค่าที่วัดจริงด้วยตลับเมตร (x_abs, y_abs) -> คำนวณ error -> บันทึกลง CSV
-#   6. ถ้ายังไม่ครบ 5 รอบ วนกลับไปขั้น 1 (รอ Enter รอบถัดไปอัตโนมัติ)
-#
 # ระหว่างที่โปรแกรมรอ input() หุ่นยนต์จะไม่เคลื่อนที่เด็ดขาด (ไม่มีการ publish cmd_vel)
-# ดังนั้นกดปุ่มอื่นผิดระหว่างรอ ไม่ทำให้หุ่นขยับหรือระบบพลาด ต้องกด Enter เท่านั้นถึงไปต่อ
+# ต้องกด Enter เท่านั้นถึงไปต่อ กดปุ่มอื่นผิดไม่ทำให้หุ่นขยับหรือระบบพลาด
 
 import rospy
 import math
@@ -40,7 +34,7 @@ from geometry_msgs.msg import Twist
 
 LINEAR_SPEED = 0.15
 ANGULAR_SPEED = 0.3
-SIDE_LEN = 4.0
+SIDE_LEN = 4.0          # เปลี่ยนเป็น 3.0 ถ้าใช้สี่เหลี่ยม 3x3m
 TURN_ANGLE = math.pi / 2
 N_TRIALS = 5
 RESULTS_FILE = "umbmark_results.csv"
@@ -90,23 +84,21 @@ def run_square(pub, direction):
 
 def append_row(row):
     file_exists = os.path.isfile(RESULTS_FILE)
-    with open(RESULTS_FILE, 'a', newline='') as f:
+    with open(RESULTS_FILE, 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow([
-                'trial', 'direction', 'x0_odom', 'y0_odom', 'x1_odom', 'y1_odom',
-                'dx_odom', 'dy_odom', 'x_abs', 'y_abs', 'delta_x', 'delta_y', 'return_error_m'
-            ])
+            writer.writerow(['รอบ', 'x_abs (m)', 'y_abs (m)', 'x_odom (m)', 'y_odom (m)', 'Δx (m)', 'Δy (m)'])
         writer.writerow(row)
 
 def run_one_trial(pub, direction, trial_num):
+    label = f"{direction.upper()} {trial_num}"
     print(f"\n=== รอบที่ {trial_num}/{N_TRIALS} | ทิศทาง: {direction.upper()} ===")
     input(">>> ตั้งหุ่นที่จุดเริ่มต้นให้ตรงเครื่องหมายบนพื้นแล้ว กด Enter เพื่อเริ่ม...")
 
     start = get_odom()
     if start is None:
         rospy.logerr("ไม่ได้รับ /odom เลย! ตรวจสอบ topic แล้วลองรอบนี้ใหม่")
-        return False
+        return False, None
     x0, y0 = start.position.x, start.position.y
     print(f"Odom เริ่มต้น: x={x0:.4f} y={y0:.4f}")
 
@@ -117,13 +109,13 @@ def run_one_trial(pub, direction, trial_num):
     end = get_odom()
     if end is None:
         rospy.logerr("ไม่ได้รับ /odom ตอนจบ! ข้อมูลรอบนี้อาจไม่สมบูรณ์")
-        return False
+        return False, None
     x1, y1 = end.position.x, end.position.y
     print(f"Odom สุดท้าย: x={x1:.4f} y={y1:.4f}")
 
-    dx_odom = x1 - x0
-    dy_odom = y1 - y0
-    print(f"Odom displacement: dx={dx_odom:.4f} dy={dy_odom:.4f} (ควรใกล้ 0 ถ้า odom ไม่มี error)")
+    x_odom = x1 - x0   # ระยะที่ odom รายงานว่าเคลื่อนที่ไปจากจุดเริ่ม
+    y_odom = y1 - y0
+    print(f"x_odom={x_odom:.4f} y_odom={y_odom:.4f} (ควรใกล้ 0 ถ้า odom ไม่มี error)")
 
     print(">>> วัดตำแหน่งจริงของจุดกลางแกนล้อ จากจุดเริ่มต้น ด้วยตลับเมตร <<<")
     while True:
@@ -134,21 +126,21 @@ def run_one_trial(pub, direction, trial_num):
         except ValueError:
             print("กรุณาใส่ตัวเลขเท่านั้น ลองใหม่")
 
-    delta_x = x_abs - dx_odom
-    delta_y = y_abs - dy_odom
-    return_error = math.hypot(delta_x, delta_y)
+    delta_x = x_abs - x_odom
+    delta_y = y_abs - y_odom
 
-    print(f"Δx = {delta_x:.4f} m | Δy = {delta_y:.4f} m | return error = {return_error:.4f} m")
+    print(f"Δx = x_abs - x_odom = {x_abs:.4f} - {x_odom:.4f} = {delta_x:.4f} m")
+    print(f"Δy = y_abs - y_odom = {y_abs:.4f} - {y_odom:.4f} = {delta_y:.4f} m")
 
-    append_row([
-        trial_num, direction,
-        f"{x0:.4f}", f"{y0:.4f}", f"{x1:.4f}", f"{y1:.4f}",
-        f"{dx_odom:.4f}", f"{dy_odom:.4f}",
+    row = [
+        label,
         f"{x_abs:.4f}", f"{y_abs:.4f}",
-        f"{delta_x:.4f}", f"{delta_y:.4f}", f"{return_error:.4f}"
-    ])
+        f"{x_odom:.4f}", f"{y_odom:.4f}",
+        f"{delta_x:.4f}", f"{delta_y:.4f}"
+    ]
+    append_row(row)
     print(f"บันทึกรอบที่ {trial_num} ลง {RESULTS_FILE} แล้ว")
-    return True
+    return True, row
 
 def main():
     parser = argparse.ArgumentParser()
@@ -165,9 +157,11 @@ def main():
 
     completed = 0
     trial = 1
+    collected_rows = []
     while completed < args.trials and not rospy.is_shutdown():
-        ok = run_one_trial(pub, args.direction, trial)
+        ok, row = run_one_trial(pub, args.direction, trial)
         if ok:
+            collected_rows.append(row)
             completed += 1
             trial += 1
             if completed < args.trials:
@@ -177,6 +171,24 @@ def main():
 
     print(f"\n=== เก็บข้อมูลครบ {args.trials} รอบ ({args.direction.upper()}) แล้ว ===")
     print(f"ผลลัพธ์ทั้งหมดอยู่ใน: {RESULTS_FILE}")
+
+    # พิมพ์สรุปตารางทุกรอบขึ้นหน้าจอ เผื่อต้องจดด้วยมือ/ถ่ายรูปไปกรอกเครื่องอื่น
+    print(f"\n{'='*72}")
+    print(f"สรุปผล — ทิศทาง {args.direction.upper()} ({len(collected_rows)} รอบ)")
+    print(f"{'='*72}")
+    header = ['รอบ', 'x_abs (m)', 'y_abs (m)', 'x_odom (m)', 'y_odom (m)', 'Δx (m)', 'Δy (m)']
+    print(f"{header[0]:<8}{header[1]:<12}{header[2]:<12}{header[3]:<12}{header[4]:<12}{header[5]:<10}{header[6]:<10}")
+    print('-' * 76)
+    sum_dx, sum_dy = 0.0, 0.0
+    for r in collected_rows:
+        print(f"{r[0]:<8}{r[1]:<12}{r[2]:<12}{r[3]:<12}{r[4]:<12}{r[5]:<10}{r[6]:<10}")
+        sum_dx += float(r[5])
+        sum_dy += float(r[6])
+    if collected_rows:
+        n = len(collected_rows)
+        print('-' * 76)
+        print(f"ค่าเฉลี่ย (x_cg, y_cg) = ({sum_dx/n:.4f}, {sum_dy/n:.4f}) m")
+    print(f"\n>>> จดหรือถ่ายรูปตารางนี้ไว้ ก่อนปิด terminal ถ้าจะเอาไปกรอกเครื่องอื่น <<<")
 
 if __name__ == '__main__':
     main()
