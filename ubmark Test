@@ -1,0 +1,182 @@
+# Terminal 1
+roscore
+
+# Terminal 2 (source workspace ก่อนถ้ายังไม่ได้ตั้งใน .bashrc)
+roslaunch kobuki_node minimal.launch
+
+# Terminal 3 — เช็คว่า /odom มีข้อมูลไหลออกมาก่อนเริ่มจริง
+rostopic echo /odom
+
+# Terminal 4 — รันตัวเก็บข้อมูล
+rosrun <ชื่อ_package_จริงของคุณ> umbmark_loop.py --direction cw
+
+
+#!/usr/bin/env python3
+# umbmark_loop.py — เก็บข้อมูล UMBmark แบบวนลูป 5 รอบในการรันครั้งเดียว
+# ใช้ /odom แบบดิบ ตามหลัก UMBmark (Borenstein & Feng, 1996)
+#
+# วิธีใช้:
+#   rosrun <your_package> umbmark_loop.py --direction cw
+#   (พอครบ 5 รอบ cw แล้ว รันใหม่อีกทีด้วย --direction ccw สำหรับอีก 5 รอบ)
+#
+# ขั้นตอนการทำงานของสคริปต์ (ต่อ 1 รอบ):
+#   1. พิมพ์บอกว่าอยู่รอบที่เท่าไหร่ -> รอกด Enter (คุณตั้งหุ่นให้ตรงเครื่องหมายก่อนกด)
+#   2. อ่าน odom เริ่มต้น
+#   3. วิ่งสี่เหลี่ยม 4x4m ตามทิศที่เลือก
+#   4. อ่าน odom สุดท้าย
+#   5. ถามค่าที่วัดจริงด้วยตลับเมตร (x_abs, y_abs) -> คำนวณ error -> บันทึกลง CSV
+#   6. ถ้ายังไม่ครบ 5 รอบ วนกลับไปขั้น 1 (รอ Enter รอบถัดไปอัตโนมัติ)
+#
+# ระหว่างที่โปรแกรมรอ input() หุ่นยนต์จะไม่เคลื่อนที่เด็ดขาด (ไม่มีการ publish cmd_vel)
+# ดังนั้นกดปุ่มอื่นผิดระหว่างรอ ไม่ทำให้หุ่นขยับหรือระบบพลาด ต้องกด Enter เท่านั้นถึงไปต่อ
+
+import rospy
+import math
+import csv
+import os
+import argparse
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Twist
+
+LINEAR_SPEED = 0.15
+ANGULAR_SPEED = 0.3
+SIDE_LEN = 4.0
+TURN_ANGLE = math.pi / 2
+N_TRIALS = 5
+RESULTS_FILE = "umbmark_results.csv"
+
+latest_odom = None
+
+def odom_callback(msg):
+    global latest_odom
+    latest_odom = msg.pose.pose
+
+def get_odom(timeout=3.0):
+    global latest_odom
+    latest_odom = None
+    t0 = rospy.Time.now().to_sec()
+    while latest_odom is None and rospy.Time.now().to_sec() - t0 < timeout:
+        rospy.sleep(0.05)
+    return latest_odom
+
+def move_straight(pub, dist, speed=LINEAR_SPEED):
+    msg = Twist()
+    msg.linear.x = speed
+    duration = dist / speed
+    t0 = rospy.Time.now().to_sec()
+    while rospy.Time.now().to_sec() - t0 < duration and not rospy.is_shutdown():
+        pub.publish(msg)
+        rospy.sleep(0.05)
+    pub.publish(Twist())
+    rospy.sleep(0.5)
+
+def turn(pub, angle, direction, speed=ANGULAR_SPEED):
+    msg = Twist()
+    msg.angular.z = -speed if direction == 'cw' else speed
+    duration = angle / speed
+    t0 = rospy.Time.now().to_sec()
+    while rospy.Time.now().to_sec() - t0 < duration and not rospy.is_shutdown():
+        pub.publish(msg)
+        rospy.sleep(0.05)
+    pub.publish(Twist())
+    rospy.sleep(0.5)
+
+def run_square(pub, direction):
+    for i in range(4):
+        rospy.loginfo(f"Leg {i+1}/4: straight {SIDE_LEN} m")
+        move_straight(pub, SIDE_LEN)
+        rospy.loginfo(f"Leg {i+1}/4: turn 90 deg {direction}")
+        turn(pub, TURN_ANGLE, direction)
+
+def append_row(row):
+    file_exists = os.path.isfile(RESULTS_FILE)
+    with open(RESULTS_FILE, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow([
+                'trial', 'direction', 'x0_odom', 'y0_odom', 'x1_odom', 'y1_odom',
+                'dx_odom', 'dy_odom', 'x_abs', 'y_abs', 'delta_x', 'delta_y', 'return_error_m'
+            ])
+        writer.writerow(row)
+
+def run_one_trial(pub, direction, trial_num):
+    print(f"\n=== รอบที่ {trial_num}/{N_TRIALS} | ทิศทาง: {direction.upper()} ===")
+    input(">>> ตั้งหุ่นที่จุดเริ่มต้นให้ตรงเครื่องหมายบนพื้นแล้ว กด Enter เพื่อเริ่ม...")
+
+    start = get_odom()
+    if start is None:
+        rospy.logerr("ไม่ได้รับ /odom เลย! ตรวจสอบ topic แล้วลองรอบนี้ใหม่")
+        return False
+    x0, y0 = start.position.x, start.position.y
+    print(f"Odom เริ่มต้น: x={x0:.4f} y={y0:.4f}")
+
+    print("กำลังวิ่งสี่เหลี่ยม...")
+    run_square(pub, direction)
+
+    rospy.sleep(0.5)
+    end = get_odom()
+    if end is None:
+        rospy.logerr("ไม่ได้รับ /odom ตอนจบ! ข้อมูลรอบนี้อาจไม่สมบูรณ์")
+        return False
+    x1, y1 = end.position.x, end.position.y
+    print(f"Odom สุดท้าย: x={x1:.4f} y={y1:.4f}")
+
+    dx_odom = x1 - x0
+    dy_odom = y1 - y0
+    print(f"Odom displacement: dx={dx_odom:.4f} dy={dy_odom:.4f} (ควรใกล้ 0 ถ้า odom ไม่มี error)")
+
+    print(">>> วัดตำแหน่งจริงของจุดกลางแกนล้อ จากจุดเริ่มต้น ด้วยตลับเมตร <<<")
+    while True:
+        try:
+            x_abs = float(input("ระยะจริงตามแกน x (เมตร): "))
+            y_abs = float(input("ระยะจริงตามแกน y (เมตร): "))
+            break
+        except ValueError:
+            print("กรุณาใส่ตัวเลขเท่านั้น ลองใหม่")
+
+    delta_x = x_abs - dx_odom
+    delta_y = y_abs - dy_odom
+    return_error = math.hypot(delta_x, delta_y)
+
+    print(f"Δx = {delta_x:.4f} m | Δy = {delta_y:.4f} m | return error = {return_error:.4f} m")
+
+    append_row([
+        trial_num, direction,
+        f"{x0:.4f}", f"{y0:.4f}", f"{x1:.4f}", f"{y1:.4f}",
+        f"{dx_odom:.4f}", f"{dy_odom:.4f}",
+        f"{x_abs:.4f}", f"{y_abs:.4f}",
+        f"{delta_x:.4f}", f"{delta_y:.4f}", f"{return_error:.4f}"
+    ])
+    print(f"บันทึกรอบที่ {trial_num} ลง {RESULTS_FILE} แล้ว")
+    return True
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--direction', choices=['cw', 'ccw'], required=True)
+    parser.add_argument('--trials', type=int, default=N_TRIALS, help="จำนวนรอบ (default 5)")
+    args, _ = parser.parse_known_args()
+
+    rospy.init_node('umbmark_loop', anonymous=True)
+    pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+    rospy.Subscriber('/odom', Odometry, odom_callback)
+    rospy.sleep(1.0)
+
+    print(f"เริ่มเก็บข้อมูล UMBmark: ทิศทาง {args.direction.upper()}, จำนวน {args.trials} รอบ")
+
+    completed = 0
+    trial = 1
+    while completed < args.trials and not rospy.is_shutdown():
+        ok = run_one_trial(pub, args.direction, trial)
+        if ok:
+            completed += 1
+            trial += 1
+            if completed < args.trials:
+                print(f"\n>>> นำหุ่นกลับจุดเริ่มต้นสำหรับรอบถัดไป ({completed}/{args.trials} เสร็จแล้ว) <<<")
+        else:
+            print("รอบนี้ล้มเหลว จะให้ลองรอบเดิมใหม่")
+
+    print(f"\n=== เก็บข้อมูลครบ {args.trials} รอบ ({args.direction.upper()}) แล้ว ===")
+    print(f"ผลลัพธ์ทั้งหมดอยู่ใน: {RESULTS_FILE}")
+
+if __name__ == '__main__':
+    main()
